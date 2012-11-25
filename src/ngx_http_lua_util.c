@@ -723,6 +723,9 @@ ngx_http_lua_init_globals(ngx_conf_t *cf, lua_State *L)
 static void
 ngx_http_lua_inject_ngx_api(ngx_conf_t *cf, lua_State *L)
 {
+#if (NGX_LUA_USE_FFI)
+    ngx_int_t                    rc;
+#endif
     ngx_http_lua_main_conf_t    *lmcf;
 
     lmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_lua_module);
@@ -764,6 +767,50 @@ ngx_http_lua_inject_ngx_api(ngx_conf_t *cf, lua_State *L)
     lua_pop(L, 2);
 
     lua_setglobal(L, "ngx");
+
+#if (NGX_LUA_USE_FFI)
+    /* inject FFI-based API */
+    {
+        const char buf[] =
+            "local ffi = require 'ffi'\n"
+            "ffi.cdef[[\n"
+            "   const char *ngx_http_lua_ffi_md5_bin(const char *src, size_t len);\n"
+            "]]\n"
+            "local tostr = ffi.string\n"
+            "local C = ffi.C\n"
+            "local strlen = string.len\n"
+            "ngx.md5_bin = function(s)\n"
+                "if type(s) ~= 'string' then\n"
+                    "if not s then\n"
+                        "s = ''\n"
+                    "else\n"
+                        "s = tostring(s)\n"
+                    "end\n"
+                "end\n"
+                "local dst = C.ngx_http_lua_ffi_md5_bin(s, strlen(s))\n"
+                "return tostr(dst, 16)\n"
+            "end";
+
+        rc = luaL_loadbuffer(L, buf, sizeof(buf) - 1, "Nginx FFI-based API");
+    }
+
+    if (rc != 0) {
+        ngx_log_error(NGX_LOG_ERR, cf->log, 0,
+                      "failed to load Lua code: %i: %s",
+                      rc, lua_tostring(L, -1));
+
+        lua_pop(L, 1);
+        return;
+    }
+
+    rc = lua_pcall(L, 0, 0, 0);
+    if (rc != 0) {
+        ngx_log_error(NGX_LOG_ERR, cf->log, 0,
+                      "failed to run the Lua code: %i: %s",
+                      rc, lua_tostring(L, -1));
+        lua_pop(L, 1);
+    }
+#endif /* NGX_LUA_USE_FFI */
 
     ngx_http_lua_inject_coroutine_api(cf->log, L);
 }

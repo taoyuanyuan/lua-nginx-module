@@ -20,6 +20,12 @@
 #include <ndk.h>
 #endif
 
+
+#ifndef NGX_LUA_USE_FFI
+#   define NGX_LUA_USE_FFI  0
+#endif
+
+
 #ifndef MD5_DIGEST_LENGTH
 #define MD5_DIGEST_LENGTH 16
 #endif

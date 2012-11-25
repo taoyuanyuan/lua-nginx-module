@@ -32,7 +32,10 @@ static int ngx_http_lua_ngx_escape_uri(lua_State *L);
 static int ngx_http_lua_ngx_unescape_uri(lua_State *L);
 static int ngx_http_lua_ngx_quote_sql_str(lua_State *L);
 static int ngx_http_lua_ngx_md5(lua_State *L);
+#if !(NGX_LUA_USE_FFI)
 static int ngx_http_lua_ngx_md5_bin(lua_State *L);
+#endif
+
 
 #if (NGX_HAVE_SHA1)
 static int ngx_http_lua_ngx_sha1_bin(lua_State *L);
@@ -46,6 +49,11 @@ static int ngx_http_lua_ngx_encode_args(lua_State *L);
 static int ngx_http_lua_ngx_decode_args(lua_State *L);
 #if (NGX_OPENSSL)
 static int ngx_http_lua_ngx_hmac_sha1(lua_State *L);
+#endif
+
+
+#if (NGX_LUA_USE_FFI)
+static u_char  ngx_http_lua_md5_buf[MD5_DIGEST_LENGTH];
 #endif
 
 
@@ -73,8 +81,13 @@ ngx_http_lua_inject_string_api(lua_State *L)
     lua_pushcfunction(L, ngx_http_lua_ngx_encode_base64);
     lua_setfield(L, -2, "encode_base64");
 
+#if (NGX_LUA_USE_FFI)
+    lua_pushboolean(L, 1);  /* just a place-holder */
+    lua_setfield(L, -2, "md5_bin");
+#else
     lua_pushcfunction(L, ngx_http_lua_ngx_md5_bin);
     lua_setfield(L, -2, "md5_bin");
+#endif
 
     lua_pushcfunction(L, ngx_http_lua_ngx_md5);
     lua_setfield(L, -2, "md5");
@@ -367,6 +380,19 @@ ngx_http_lua_ngx_md5(lua_State *L)
 }
 
 
+#if (NGX_LUA_USE_FFI)
+const u_char *
+ngx_http_lua_ffi_md5_bin(const u_char *src, size_t len)
+{
+    ngx_md5_t     md5;
+
+    ngx_md5_init(&md5);
+    ngx_md5_update(&md5, src, len);
+    ngx_md5_final(ngx_http_lua_md5_buf, &md5);
+
+    return ngx_http_lua_md5_buf;
+}
+#else /* !(NGX_LUA_USE_FFI) */
 static int
 ngx_http_lua_ngx_md5_bin(lua_State *L)
 {
@@ -398,6 +424,7 @@ ngx_http_lua_ngx_md5_bin(lua_State *L)
 
     return 1;
 }
+#endif /* NGX_LUA_USE_FFI */
 
 
 #if (NGX_HAVE_SHA1)
