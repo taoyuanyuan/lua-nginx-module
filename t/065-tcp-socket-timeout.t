@@ -28,7 +28,6 @@ plan tests => repeat_each() * (blocks() * 4 + 10);
 
 our $HtmlDir = html_dir;
 
-$ENV{TEST_NGINX_CLIENT_PORT} ||= server_port();
 $ENV{TEST_NGINX_MEMCACHED_PORT} ||= 11211;
 $ENV{TEST_NGINX_RESOLVER} ||= '8.8.8.8';
 
@@ -44,6 +43,7 @@ __DATA__
     server_tokens off;
     lua_socket_connect_timeout 100ms;
     resolver $TEST_NGINX_RESOLVER;
+    resolver_timeout 1s;
     location /t {
         content_by_lua '
             local sock = ngx.socket.tcp()

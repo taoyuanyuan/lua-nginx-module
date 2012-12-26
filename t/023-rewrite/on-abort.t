@@ -67,7 +67,8 @@ delete thread 3
 lua req cleanup
 
 --- timeout: 0.2
---- wait: 0.5
+--- abort
+--- wait: 0.7
 --- ignore_response
 --- no_error_log
 [error]
@@ -111,6 +112,7 @@ delete thread 2
 delete thread 1
 
 --- timeout: 0.2
+--- abort
 --- ignore_response
 --- no_error_log
 [error]
@@ -157,6 +159,7 @@ delete thread 2
 delete thread 1
 
 --- timeout: 0.2
+--- abort
 --- ignore_response
 --- no_error_log
 [error]
@@ -202,6 +205,8 @@ delete thread 2
 delete thread 1
 
 --- timeout: 0.2
+--- abort
+--- wait: 0.1
 --- ignore_response
 --- no_error_log
 [error]
@@ -247,6 +252,7 @@ delete thread 2
 delete thread 1
 
 --- timeout: 0.2
+--- abort
 --- ignore_response
 --- no_error_log
 [error]
@@ -296,7 +302,8 @@ delete thread 3
 lua req cleanup
 
 --- timeout: 0.2
---- wait: 0.5
+--- abort
+--- wait: 0.6
 --- ignore_response
 --- error_log
 client prematurely closed connection
@@ -357,6 +364,7 @@ delete thread 2
 delete thread 1
 
 --- timeout: 0.2
+--- abort
 --- wait: 0.2
 --- ignore_response
 --- no_error_log
@@ -401,6 +409,7 @@ delete thread 2
 lua req cleanup
 
 --- timeout: 0.2
+--- abort
 --- response_body
 cannot set on_abort: lua_check_client_abort is off
 --- no_error_log
@@ -492,6 +501,7 @@ delete thread 4
 lua req cleanup
 
 --- timeout: 0.2
+--- abort
 --- wait: 0.7
 --- ignore_response
 --- no_error_log
@@ -542,6 +552,7 @@ delete thread 2
 delete thread 3
 
 --- timeout: 0.2
+--- abort
 --- ignore_response
 --- no_error_log
 [error]

@@ -9,12 +9,13 @@ our $StapScript = $t::StapThread::StapScript;
 
 repeat_each(2);
 
-plan tests => repeat_each() * (blocks() * 4 + 1);
+plan tests => repeat_each() * (blocks() * 4);
 
 $ENV{TEST_NGINX_RESOLVER} ||= '8.8.8.8';
 $ENV{TEST_NGINX_MEMCACHED_PORT} ||= '11211';
 
 #no_shuffle();
+worker_connections(256);
 no_long_string();
 run_tests();
 
@@ -1137,6 +1138,538 @@ delete thread 1
 before
 hello foo and 3.14
 after
+--- no_error_log
+[error]
+
+
+
+=== TEST 25: multiple user threads + subrequests returning 404 immediately
+--- config
+    location /t {
+        content_by_lua '
+            local capture = ngx.location.capture
+            local insert = table.insert
+
+            local function f(i)
+                local res = capture("/proxy/" .. i)
+                ngx.say("status: ", res.status)
+            end
+
+            local threads = {}
+            for i = 1, 2 do
+                local co = ngx.thread.spawn(f, i)
+                insert(threads, co)
+            end
+
+            ngx.say("ok")
+        ';
+    }
+
+    location ~ ^/proxy/(\d+) {
+        return 404;
+    }
+--- request
+    GET /t
+--- stap2 eval: $::StapScript
+--- stap eval
+"$::GCScript"
+.
+'
+F(ngx_http_finalize_request) {
+    printf("finalize request %s: rc:%d c:%d a:%d\n", ngx_http_req_uri($r), $rc, $r->main->count, $r == $r->main);
+    #if ($rc == -1) {
+        #print_ubacktrace()
+    #}
+}
+
+M(http-subrequest-done) {
+    printf("subrequest %s done\n", ngx_http_req_uri($r))
+}
+
+F(ngx_http_lua_post_subrequest) {
+    printf("post subreq: %s rc=%d, status=%d a=%d\n", ngx_http_req_uri($r), $rc,
+         $r->headers_out->status, $r == $r->main)
+    #print_ubacktrace()
+}
+'
+--- stap_out_like chop
+^create 2 in 1
+spawn user thread 2 in 1
+create 3 in 1
+spawn user thread 3 in 1
+terminate 1: ok
+delete thread 1
+finalize request /t: rc:-4 c:4 a:1
+finalize request /proxy/1: rc:404 c:3 a:0
+post subreq: /proxy/1 rc=404, status=0 a=0
+subrequest /proxy/1 done
+terminate 2: ok
+delete thread 2
+finalize request /proxy/2: rc:404 c:2 a:0
+post subreq: /proxy/2 rc=404, status=0 a=0
+subrequest /proxy/2 done
+terminate 3: ok
+delete thread 3
+finalize request /t: rc:0 c:1 a:1
+(?:finalize request /t: rc:0 c:1 a:1)?$
+
+--- response_body
+ok
+status: 404
+status: 404
+--- no_error_log
+[error]
+--- timeout: 3
+
+
+
+=== TEST 26: multiple user threads + subrequests returning 404 remotely (no wait)
+--- config
+    location /t {
+        content_by_lua '
+            local capture = ngx.location.capture
+            local insert = table.insert
+
+            local function f(i)
+                local res = capture("/proxy/" .. i)
+                ngx.say("status: ", res.status)
+            end
+
+            local threads = {}
+            for i = 1, 5 do
+                local co = ngx.thread.spawn(f, i)
+                insert(threads, co)
+            end
+
+            ngx.say("ok")
+        ';
+    }
+
+    location ~ ^/proxy/(\d+) {
+        proxy_pass http://127.0.0.1:$server_port/d/$1;
+    }
+
+    location /d {
+        return 404;
+        #echo $uri;
+    }
+--- request
+    GET /t
+--- stap2 eval: $::StapScript
+--- stap eval: $::GCScript
+--- stap_out_like chop
+^create 2 in 1
+spawn user thread 2 in 1
+create 3 in 1
+spawn user thread 3 in 1
+create 4 in 1
+spawn user thread 4 in 1
+create 5 in 1
+spawn user thread 5 in 1
+create 6 in 1
+spawn user thread 6 in 1
+terminate 1: ok
+delete thread 1
+(?:terminate 2: ok
+delete thread 2
+terminate 3: ok
+delete thread 3
+terminate 4: ok
+delete thread 4
+terminate 5: ok
+delete thread 5
+terminate 6: ok
+delete thread 6
+|terminate 6: ok
+delete thread 6
+terminate 5: ok
+delete thread 5
+terminate 4: ok
+delete thread 4
+terminate 3: ok
+delete thread 3
+terminate 2: ok
+delete thread 2)$
+
+--- response_body
+ok
+status: 404
+status: 404
+status: 404
+status: 404
+status: 404
+--- no_error_log
+[error]
+--- timeout: 6
+
+
+
+=== TEST 27: multiple user threads + subrequests returning 201 immediately
+--- config
+    location /t {
+        content_by_lua '
+            local capture = ngx.location.capture
+            local insert = table.insert
+
+            local function f(i)
+                local res = capture("/proxy/" .. i)
+                ngx.say("status: ", res.status)
+            end
+
+            local threads = {}
+            for i = 1, 2 do
+                local co = ngx.thread.spawn(f, i)
+                insert(threads, co)
+            end
+
+            ngx.say("ok")
+        ';
+    }
+
+    location ~ ^/proxy/(\d+) {
+        content_by_lua 'ngx.exit(201)';
+    }
+--- request
+    GET /t
+--- stap2 eval: $::StapScript
+--- stap eval
+"$::GCScript"
+.
+'
+F(ngx_http_finalize_request) {
+    printf("finalize request %s: rc:%d c:%d a:%d\n", ngx_http_req_uri($r), $rc, $r->main->count, $r == $r->main);
+    #if ($rc == -1) {
+        #print_ubacktrace()
+    #}
+}
+
+M(http-subrequest-done) {
+    printf("subrequest %s done\n", ngx_http_req_uri($r))
+}
+
+F(ngx_http_lua_post_subrequest) {
+    printf("post subreq: %s rc=%d, status=%d a=%d\n", ngx_http_req_uri($r), $rc,
+         $r->headers_out->status, $r == $r->main)
+    #print_ubacktrace()
+}
+'
+
+--- stap_out_like chop
+^create 2 in 1
+spawn user thread 2 in 1
+create 3 in 1
+spawn user thread 3 in 1
+terminate 1: ok
+delete thread 1
+finalize request /t: rc:-4 c:4 a:1
+terminate 4: ok
+delete thread 4
+finalize request /proxy/1: rc:201 c:3 a:0
+post subreq: /proxy/1 rc=201, status=201 a=0
+subrequest /proxy/1 done
+terminate 2: ok
+delete thread 2
+terminate 5: ok
+delete thread 5
+finalize request /proxy/2: rc:201 c:2 a:0
+post subreq: /proxy/2 rc=201, status=201 a=0
+subrequest /proxy/2 done
+terminate 3: ok
+delete thread 3
+finalize request /t: rc:0 c:1 a:1
+(?:finalize request /t: rc:0 c:1 a:1)?$
+
+--- response_body
+ok
+status: 201
+status: 201
+--- no_error_log
+[error]
+--- timeout: 3
+
+
+
+=== TEST 28: multiple user threads + subrequests returning 204 immediately
+--- config
+    location /t {
+        content_by_lua '
+            local capture = ngx.location.capture
+            local insert = table.insert
+
+            local function f(i)
+                local res = capture("/proxy/" .. i)
+                ngx.say("status: ", res.status)
+            end
+
+            local threads = {}
+            for i = 1, 2 do
+                local co = ngx.thread.spawn(f, i)
+                insert(threads, co)
+            end
+
+            ngx.say("ok")
+        ';
+    }
+
+    location ~ ^/proxy/(\d+) {
+        content_by_lua 'ngx.exit(204)';
+    }
+--- request
+    GET /t
+--- stap2 eval: $::StapScript
+--- stap eval
+"$::GCScript"
+.
+'
+F(ngx_http_finalize_request) {
+    printf("finalize request %s: rc:%d c:%d a:%d\n", ngx_http_req_uri($r), $rc, $r->main->count, $r == $r->main);
+    #if ($rc == -1) {
+        #print_ubacktrace()
+    #}
+}
+
+M(http-subrequest-done) {
+    printf("subrequest %s done\n", ngx_http_req_uri($r))
+}
+
+F(ngx_http_lua_post_subrequest) {
+    printf("post subreq: %s rc=%d, status=%d a=%d\n", ngx_http_req_uri($r), $rc,
+         $r->headers_out->status, $r == $r->main)
+    #print_ubacktrace()
+}
+'
+--- stap_out_like chop
+^create 2 in 1
+spawn user thread 2 in 1
+create 3 in 1
+spawn user thread 3 in 1
+terminate 1: ok
+delete thread 1
+finalize request /t: rc:-4 c:4 a:1
+terminate 4: ok
+delete thread 4
+finalize request /proxy/1: rc:204 c:3 a:0
+post subreq: /proxy/1 rc=204, status=204 a=0
+subrequest /proxy/1 done
+terminate 2: ok
+delete thread 2
+terminate 5: ok
+delete thread 5
+finalize request /proxy/2: rc:204 c:2 a:0
+post subreq: /proxy/2 rc=204, status=204 a=0
+subrequest /proxy/2 done
+terminate 3: ok
+delete thread 3
+finalize request /t: rc:0 c:1 a:1
+(?:finalize request /t: rc:0 c:1 a:1)?$
+
+--- response_body
+ok
+status: 204
+status: 204
+--- no_error_log
+[error]
+--- timeout: 3
+
+
+
+=== TEST 29: multiple user threads + subrequests returning 404 remotely (wait)
+--- config
+    location /t {
+        content_by_lua '
+            local n = 5
+            local capture = ngx.location.capture
+            local insert = table.insert
+
+            local function f(i)
+                local res = capture("/proxy/" .. i)
+                return res.status
+            end
+
+            local threads = {}
+            for i = 1, n do
+                local co = ngx.thread.spawn(f, i)
+                insert(threads, co)
+            end
+
+            for i = 1, n do
+                local ok, res = ngx.thread.wait(threads[i])
+                ngx.say(i, ": ", res)
+            end
+
+            ngx.say("ok")
+        ';
+    }
+
+    location ~ ^/proxy/(\d+) {
+        proxy_pass http://127.0.0.1:$server_port/d/$1;
+    }
+
+    location /d {
+        return 404;
+        #echo $uri;
+    }
+--- request
+    GET /t
+--- stap2 eval: $::StapScript
+--- stap3 eval: $::GCScript
+--- stap_out3
+create 2 in 1
+spawn user thread 2 in 1
+create 3 in 1
+spawn user thread 3 in 1
+create 4 in 1
+spawn user thread 4 in 1
+create 5 in 1
+spawn user thread 5 in 1
+create 6 in 1
+spawn user thread 6 in 1
+terminate 2: ok
+delete thread 2
+terminate 3: ok
+delete thread 3
+terminate 4: ok
+delete thread 4
+terminate 5: ok
+delete thread 5
+terminate 6: ok
+delete thread 6
+terminate 1: ok
+delete thread 1
+
+--- response_body
+1: 404
+2: 404
+3: 404
+4: 404
+5: 404
+ok
+--- no_error_log
+[error]
+--- timeout: 6
+
+
+
+=== TEST 30: multiple user threads + subrequests remotely (wait)
+--- config
+    location /t {
+        content_by_lua '
+            local n = 20
+            local capture = ngx.location.capture
+            local insert = table.insert
+
+            local function f(i)
+                local res = capture("/proxy/" .. i)
+                return res.status
+            end
+
+            local threads = {}
+            for i = 1, n do
+                local co = ngx.thread.spawn(f, i)
+                insert(threads, co)
+            end
+
+            for i = 1, n do
+                local ok, res = ngx.thread.wait(threads[i])
+                ngx.say(i, ": ", res)
+            end
+
+            ngx.say("ok")
+        ';
+    }
+
+    location ~ ^/proxy/(\d+) {
+        proxy_pass http://127.0.0.1:$server_port/d/$1;
+    }
+
+    location /d {
+        echo_sleep 0.001;
+        echo $uri;
+    }
+--- request
+    GET /t
+--- stap2 eval: $::StapScript
+--- stap3 eval: $::GCScript
+--- stap_out3
+create 2 in 1
+spawn user thread 2 in 1
+create 3 in 1
+spawn user thread 3 in 1
+create 4 in 1
+spawn user thread 4 in 1
+create 5 in 1
+spawn user thread 5 in 1
+create 6 in 1
+spawn user thread 6 in 1
+terminate 2: ok
+delete thread 2
+terminate 3: ok
+delete thread 3
+terminate 4: ok
+delete thread 4
+terminate 5: ok
+delete thread 5
+terminate 6: ok
+delete thread 6
+terminate 1: ok
+delete thread 1
+
+--- response_body
+1: 200
+2: 200
+3: 200
+4: 200
+5: 200
+6: 200
+7: 200
+8: 200
+9: 200
+10: 200
+11: 200
+12: 200
+13: 200
+14: 200
+15: 200
+16: 200
+17: 200
+18: 200
+19: 200
+20: 200
+ok
+--- no_error_log
+[error]
+[alert]
+--- timeout: 10
+
+
+
+=== TEST 31: simple user thread without I/O
+--- config
+    location /lua {
+        content_by_lua '
+            function f()
+                ngx.sleep(0.1)
+                ngx.say("f")
+            end
+
+            ngx.thread.spawn(f)
+            collectgarbage()
+        ';
+    }
+--- request
+GET /lua
+--- stap2 eval: $::StapScript
+--- stap eval: $::GCScript
+--- stap_out
+create 2 in 1
+spawn user thread 2 in 1
+terminate 1: ok
+delete thread 1
+terminate 2: ok
+delete thread 2
+
+--- response_body
+f
 --- no_error_log
 [error]
 

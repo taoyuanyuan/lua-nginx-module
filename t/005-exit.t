@@ -11,7 +11,7 @@ repeat_each(2);
 #log_level('warn');
 #worker_connections(1024);
 
-plan tests => repeat_each() * (blocks() * 3 - 1);
+plan tests => repeat_each() * (blocks() * 3 + 3);
 
 $ENV{TEST_NGINX_MEMCACHED_PORT} ||= 11211;
 $ENV{TEST_NGINX_MYSQL_PORT} ||= 3306;
@@ -66,7 +66,8 @@ GET /lua
 attempt to set status 404 via ngx.exit after sending out the response status 200
 --- no_error_log
 alert
---- ignore_response
+--- response_body
+hi
 
 
 
@@ -481,7 +482,7 @@ hello
 --- request
 GET /lua
 --- error_code: 501
---- response_body_like: 501 Method Not Implemented
+--- response_body_like: 501 (?:Method )?Not Implemented
 --- no_error_log
 [error]
 
@@ -497,7 +498,7 @@ GET /lua
 --- request
 GET /lua
 --- error_code: 501
---- response_body_like: 501 Method Not Implemented
+--- response_body_like: 501 (?:Method )?Not Implemented
 --- no_error_log
 [error]
 
@@ -514,7 +515,8 @@ GET /lua
     }
 --- request
 GET /lua
---- ignore_response
+--- response_body
+Hello World
 --- error_log
 attempt to set status 403 via ngx.exit after sending out the response status 200
 --- no_error_log

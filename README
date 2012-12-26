@@ -8,9 +8,9 @@ Status
     This module is under active development and is production ready.
 
 Version
-    This document describes ngx_lua v0.7.5
-    (<https://github.com/chaoslawful/lua-nginx-module/tags>) released on 20
-    November 2012.
+    This document describes ngx_lua v0.7.10
+    (<https://github.com/chaoslawful/lua-nginx-module/tags>) released on 25
+    December 2012.
 
 Synopsis
         # set search paths for pure Lua external libraries (';;' is the default path):
@@ -250,9 +250,9 @@ Directives
     request (such that Lua modules will not be cached either). With this in
     place, developers can adopt an edit-and-refresh approach.
 
-    Please note however, that Lua code written inline within nginx.conf such
-    as those specified by set_by_lua, content_by_lua, access_by_lua, and
-    rewrite_by_lua will *always* be cached because only the Nginx config
+    Please note however, that Lua code written inlined within nginx.conf
+    such as those specified by set_by_lua, content_by_lua, access_by_lua,
+    and rewrite_by_lua will *always* be cached because only the Nginx config
     file parser can correctly parse the "nginx.conf" file and the only ways
     to to reload the config file are to send a "HUP" signal or to restart
     Nginx.
@@ -639,7 +639,7 @@ Directives
             rewrite_by_lua '
                 local res = ngx.location.capture("/check-spam")
                 if res.body == "spam" then
-                    ngx.redirect("/terms-of-use.html")
+                    return ngx.redirect("/terms-of-use.html")
                 end
             ';
 
@@ -1928,6 +1928,10 @@ Nginx API for Lua
     headers should be ignored by setting proxy_pass_request_headers to "off"
     in subrequest locations.
 
+    When the "body" option is not specified, the "POST" and "PUT"
+    subrequests will inherit the request bodies of the parent request (if
+    any).
+
     There is a hard-coded upper limit on the number of concurrent
     subrequests possible for every main request. In older versions of Nginx,
     the limit was 50 concurrent subrequests and in more recent versions,
@@ -2013,6 +2017,11 @@ Nginx API for Lua
 
         ngx.status = ngx.HTTP_CREATED
         status = ngx.status
+
+    Setting "ngx.status" after the response header is sent out has no effect
+    but leaving an error message in your nginx's error log file:
+
+        attempt to set ngx.status after sending out response headers
 
   ngx.header.HEADER
     syntax: *ngx.header.HEADER = VALUE*
@@ -2111,6 +2120,24 @@ Nginx API for Lua
 
     For reading *request* headers, use the ngx.req.get_headers function
     instead.
+
+  ngx.req.start_time
+    syntax: *secs = ngx.req.start_time()*
+
+    context: *set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*,
+    header_filter_by_lua*, body_filter_by_lua*, log_by_lua**
+
+    Returns a floating-point number representing the timestamp (including
+    milliseconds as the decimal part) when the current request was created.
+
+    The following example emulates the $request_time variable value
+    (provided by [[HttpLogModule]]) in pure Lua:
+
+        local request_time = ngx.now() - ngx.req.start_time()
+
+    This function was first introduced in the "v0.7.7" release.
+
+    See also ngx.now and ngx.update_time.
 
   ngx.req.get_method
     syntax: *method_name = ngx.req.get_method()*
@@ -2518,6 +2545,15 @@ Nginx API for Lua
 
         ngx.req.clear_header("X-Foo")
 
+  ngx.req.clear_header
+    syntax: *ngx.req.clear_header(header_name)*
+
+    context: *set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*,
+    header_filter_by_lua*, body_filter_by_lua**
+
+    Clear the current request's request header named "header_name". None of
+    the current request's subrequests will be affected.
+
   ngx.req.read_body
     syntax: *ngx.req.read_body()*
 
@@ -2811,15 +2847,6 @@ Nginx API for Lua
 
     This function was first introduced in the "v0.5.0rc1" release.
 
-  ngx.req.clear_header
-    syntax: *ngx.req.clear_header(header_name)*
-
-    context: *set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*,
-    header_filter_by_lua*, body_filter_by_lua**
-
-    Clear the current request's request header named "header_name". None of
-    the current request's subrequests will be affected.
-
   ngx.exec
     syntax: *ngx.exec(uri, args?)*
 
@@ -2899,8 +2926,6 @@ Nginx API for Lua
     This method *must* be called before ngx.send_headers or explicit
     response body outputs by either ngx.print or ngx.say.
 
-    This method never returns.
-
     This method is very much like the rewrite directive with the "redirect"
     modifier in the standard [[HttpRewriteModule]], for example, this
     "nginx.conf" snippet
@@ -2923,8 +2948,9 @@ Nginx API for Lua
 
         return ngx.redirect('/foo?a=3&b=4')
 
-    It is strongly recommended to combine the "return" statement with this
-    call, i.e., "return ngx.redirect(...)".
+    This method call terminates the current request's processing and never
+    returns. It is recommended to combine the "return" statement with this
+    call, i.e., "return ngx.redirect(...)", so as to be more explicit.
 
   ngx.send_headers
     syntax: *ngx.send_headers()*
@@ -3388,8 +3414,8 @@ Nginx API for Lua
     current time stamp from the nginx cached time (no syscall involved
     unlike Lua's date library).
 
-    Use the Nginx core timer_resolution directive to adjust the accuracy or
-    forcibly update the Nginx time cache by calling ngx.update_time first.
+    You can forcibly update the Nginx time cache by calling ngx.update_time
+    first.
 
     This API was first introduced in "v0.3.1rc32".
 
@@ -3452,7 +3478,7 @@ Nginx API for Lua
     the time stamp in seconds (like those returned from ngx.time).
 
         ngx.say(ngx.http_time(1290079655))
-            -- yields "Thu, 18 Nov 10 11:27:35 GMT"
+            -- yields "Thu, 18 Nov 2010 11:27:35 GMT"
 
   ngx.parse_http_time
     syntax: *sec = ngx.parse_http_time(str)*
@@ -3463,7 +3489,7 @@ Nginx API for Lua
     Parse the http time string (as returned by ngx.http_time) into seconds.
     Returns the seconds or "nil" if the input string is in bad forms.
 
-        local time = ngx.parse_http_time("Thu, 18 Nov 10 11:27:35 GMT")
+        local time = ngx.parse_http_time("Thu, 18 Nov 2010 11:27:35 GMT")
         if time == nil then
             ...
         end
@@ -3890,6 +3916,9 @@ Nginx API for Lua
     These two forms are fundamentally equivalent.
 
     This feature was first introduced in the "v0.3.1rc22" release.
+
+    Please note that while internally the key-value pair is set atomically,
+    the atomicity does not go across the method call boundary.
 
     See also ngx.shared.DICT.
 
@@ -4570,9 +4599,9 @@ Nginx API for Lua
 
     context: *rewrite_by_lua*, access_by_lua*, content_by_lua**
 
-    Puts the current socket's connection into the cosocket built-in
-    connection pool and keep it alive until other connect method calls
-    request it or the associated maximal idle timeout is expired.
+    Puts the current socket's connection immediately into the cosocket
+    built-in connection pool and keep it alive until other connect method
+    calls request it or the associated maximal idle timeout is expired.
 
     The first optional argument, "timeout", can be used to specify the
     maximal idle timeout (in milliseconds) for the current connection. If
@@ -4799,7 +4828,9 @@ Nginx API for Lua
     to abort a running Nginx subrequest in general. So it is also prohibited
     to abort a running "light thread" that is pending on one ore more Nginx
     subrequests. You must call ngx.thread.wait to wait for those "light
-    thread" to terminate before quitting the "world".
+    thread" to terminate before quitting the "world". A notable exception
+    here is that you can abort pending subrequests by calling ngx.exit with
+    and only with the status code "ngx.ERROR" (-1), 408, 444, or 499.
 
     The "light threads" are not scheduled in a pre-emptive way. In other
     words, no time-slicing is performed automatically. A "light thread" will
@@ -5218,7 +5249,7 @@ Data Sharing within an Nginx Worker
     and then accessing it from "nginx.conf":
 
         location /lua {
-            content_lua_by_lua '
+            content_by_lua '
                 local mydata = require "mydata"
                 ngx.say(mydata.get_age("dog"))
             ';
@@ -5297,16 +5328,23 @@ Known Issues
         use LuaJIT 2.0, which supports a fully resumable VM, to avoid this.
 
   Lua Variable Scope
-    Care should be taken when importing modules and this form should be
-    used:
+    Care must be taken when importing modules and this form should be used:
 
         local xxx = require('xxx')
 
     instead of the old deprecated form: require('xxx')
 
-    If the old form is required, force reload the module for every request
-    by using the "package.loaded.<module>" command: package.loaded.xxx = nil
-    require('xxx')
+    Here is the reason: by design, the global environment has exactly the
+    same lifetime as the Nginx request handler associated with it. Each
+    request handler has its own set of Lua global variables and that is the
+    idea of request isolation. The Lua module is actually loaded by the
+    first Nginx request handler and is cached by the "require()" built-in in
+    the package.loaded table for later reference, and "require()" has the
+    side effect of setting a global variable to the loaded module table. But
+    this global variable will be cleared at the end of the request handler,
+    and every subsequent request handler all has its own (clean) global
+    environment. So one will get Lua exception for accessing the "nil"
+    value.
 
     It is recommended to always place the following piece of code at the end
     of Lua modules that use the I/O operations to prevent casual use of
@@ -5481,7 +5519,7 @@ Nginx Compatibility
 
     *   1.3.x (last tested: 1.3.7)
 
-    *   1.2.x (last tested: 1.2.4)
+    *   1.2.x (last tested: 1.2.6)
 
     *   1.1.x (last tested: 1.1.5)
 

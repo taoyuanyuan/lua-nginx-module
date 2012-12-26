@@ -10,7 +10,7 @@ This module is under active development and is production ready.
 
 = Version =
 
-This document describes ngx_lua [https://github.com/chaoslawful/lua-nginx-module/tags v0.7.5] released on 20 November 2012.
+This document describes ngx_lua [https://github.com/chaoslawful/lua-nginx-module/tags v0.7.10] released on 25 December 2012.
 
 = Synopsis =
 <geshi lang="nginx">
@@ -228,7 +228,7 @@ and the Lua <code>package.loaded</code> table will be cleared
 at the entry point of every request (such that Lua modules
 will not be cached either). With this in place, developers can adopt an edit-and-refresh approach.
 
-Please note however, that Lua code written inline within nginx.conf
+Please note however, that Lua code written inlined within nginx.conf
 such as those specified by [[#set_by_lua|set_by_lua]], [[#content_by_lua|content_by_lua]],
 [[#access_by_lua|access_by_lua]], and [[#rewrite_by_lua|rewrite_by_lua]] will ''always'' be
 cached because only the Nginx config file parser can correctly parse the <code>nginx.conf</code>
@@ -558,7 +558,7 @@ can be implemented in ngx_lua as:
         rewrite_by_lua '
             local res = ngx.location.capture("/check-spam")
             if res.body == "spam" then
-                ngx.redirect("/terms-of-use.html")
+                return ngx.redirect("/terms-of-use.html")
             end
         ';
  
@@ -1692,6 +1692,8 @@ subrequests, an "Accept-Encoding: gzip" header in the main request may result
 in gzipped responses that cannot be handled properly in Lua code. Original request headers should be ignored by setting 
 [[HttpProxyModule#proxy_pass_request_headers|proxy_pass_request_headers]] to <code>off</code> in subrequest locations.
 
+When the <code>body</code> option is not specified, the <code>POST</code> and <code>PUT</code> subrequests will inherit the request bodies of the parent request (if any).
+
 There is a hard-coded upper limit on the number of concurrent subrequests possible for every main request. In older versions of Nginx, the limit was <code>50</code> concurrent subrequests and in more recent versions, Nginx <code>1.1.x</code> onwards, this was increased to <code>200</code> concurrent subrequests. When this limit is exceeded, the following error message is added to the <code>error.log</code> file:
 
 <geshi lang="text">
@@ -1770,6 +1772,12 @@ before sending out the response headers.
 <geshi lang="lua">
     ngx.status = ngx.HTTP_CREATED
     status = ngx.status
+</geshi>
+
+Setting <code>ngx.status</code> after the response header is sent out has no effect but leaving an error message in your nginx's error log file:
+
+<geshi lang="text">
+    attempt to set ngx.status after sending out response headers
 </geshi>
 
 == ngx.header.HEADER ==
@@ -1873,6 +1881,23 @@ to be returned when reading <code>ngx.header.Foo</code>.
 Note that <code>ngx.header</code> is not a normal Lua table and as such, it is not possible to iterate through it using the Lua <code>ipairs</code> function.
 
 For reading ''request'' headers, use the [[#ngx.req.get_headers|ngx.req.get_headers]] function instead.
+
+== ngx.req.start_time ==
+'''syntax:''' ''secs = ngx.req.start_time()''
+
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+
+Returns a floating-point number representing the timestamp (including milliseconds as the decimal part) when the current request was created.
+
+The following example emulates the <code>$request_time</code> variable value (provided by [[HttpLogModule]]) in pure Lua:
+
+<geshi lang="lua">
+    local request_time = ngx.now() - ngx.req.start_time()
+</geshi>
+
+This function was first introduced in the <code>v0.7.7</code> release.
+
+See also [[#ngx.now|ngx.now]] and [[#ngx.update_time|ngx.update_time]].
 
 == ngx.req.get_method ==
 '''syntax:''' ''method_name = ngx.req.get_method()''
@@ -2294,6 +2319,13 @@ is equivalent to
     ngx.req.clear_header("X-Foo")
 </geshi>
 
+== ngx.req.clear_header ==
+'''syntax:''' ''ngx.req.clear_header(header_name)''
+
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*''
+
+Clear the current request's request header named <code>header_name</code>. None of the current request's subrequests will be affected.
+
 == ngx.req.read_body ==
 '''syntax:''' ''ngx.req.read_body()''
 
@@ -2488,13 +2520,6 @@ If any request body data has been pre-read into the Nginx core request header bu
 
 This function was first introduced in the <code>v0.5.0rc1</code> release.
 
-== ngx.req.clear_header ==
-'''syntax:''' ''ngx.req.clear_header(header_name)''
-
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*''
-
-Clear the current request's request header named <code>header_name</code>. None of the current request's subrequests will be affected.
-
 == ngx.exec ==
 '''syntax:''' ''ngx.exec(uri, args?)''
 
@@ -2578,8 +2603,6 @@ We can also use the numerical code directly as the second <code>status</code> ar
 
 This method ''must'' be called before [[#ngx.send_headers|ngx.send_headers]] or explicit response body outputs by either [[#ngx.print|ngx.print]] or [[#ngx.say|ngx.say]].
 
-This method never returns.
-
 This method is very much like the [[HttpRewriteModule#rewrite|rewrite]] directive with the <code>redirect</code> modifier in the standard
 [[HttpRewriteModule]], for example, this <code>nginx.conf</code> snippet
 
@@ -2611,7 +2634,7 @@ URI arguments can be specified as well, for example:
     return ngx.redirect('/foo?a=3&b=4')
 </geshi>
 
-It is strongly recommended to combine the <code>return</code> statement with this call, i.e., <code>return ngx.redirect(...)</code>.
+This method call terminates the current request's processing and never returns. It is recommended to combine the <code>return</code> statement with this call, i.e., <code>return ngx.redirect(...)</code>, so as to be more explicit.
 
 == ngx.send_headers ==
 '''syntax:''' ''ngx.send_headers()''
@@ -3013,7 +3036,7 @@ Updates of the Nginx time cache an be forced by calling [[#ngx.update_time|ngx.u
 
 Returns a floating-point number for the elapsed time in seconds (including milliseconds as the decimal part) from the epoch for the current time stamp from the nginx cached time (no syscall involved unlike Lua's date library).
 
-Use the Nginx core [[CoreModule#timer_resolution|timer_resolution]] directive to adjust the accuracy or forcibly update the Nginx time cache by calling [[#ngx.update_time|ngx.update_time]] first.
+You can forcibly update the Nginx time cache by calling [[#ngx.update_time|ngx.update_time]] first.
 
 This API was first introduced in <code>v0.3.1rc32</code>.
 
@@ -3065,7 +3088,7 @@ Returns a formated string can be used as the http header time (for example, bein
 
 <geshi lang="nginx">
     ngx.say(ngx.http_time(1290079655))
-        -- yields "Thu, 18 Nov 10 11:27:35 GMT"
+        -- yields "Thu, 18 Nov 2010 11:27:35 GMT"
 </geshi>
 
 == ngx.parse_http_time ==
@@ -3076,7 +3099,7 @@ Returns a formated string can be used as the http header time (for example, bein
 Parse the http time string (as returned by [[#ngx.http_time|ngx.http_time]]) into seconds. Returns the seconds or <code>nil</code> if the input string is in bad forms.
 
 <geshi lang="nginx">
-    local time = ngx.parse_http_time("Thu, 18 Nov 10 11:27:35 GMT")
+    local time = ngx.parse_http_time("Thu, 18 Nov 2010 11:27:35 GMT")
     if time == nil then
         ...
     end
@@ -3441,6 +3464,8 @@ or use Lua's syntactic sugar for method calls:
 These two forms are fundamentally equivalent.
 
 This feature was first introduced in the <code>v0.3.1rc22</code> release.
+
+Please note that while internally the key-value pair is set atomically, the atomicity does not go across the method call boundary.
 
 See also [[#ngx.shared.DICT|ngx.shared.DICT]].
 
@@ -3964,7 +3989,7 @@ This feature was first introduced in the <code>v0.5.0rc1</code> release.
 
 '''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
 
-Puts the current socket's connection into the cosocket built-in connection pool and keep it alive until other [[#tcpsock:connect|connect]] method calls request it or the associated maximal idle timeout is expired.
+Puts the current socket's connection immediately into the cosocket built-in connection pool and keep it alive until other [[#tcpsock:connect|connect]] method calls request it or the associated maximal idle timeout is expired.
 
 The first optional argument, <code>timeout</code>, can be used to specify the maximal idle timeout (in milliseconds) for the current connection. If omitted, the default setting in the [[#lua_socket_keepalive_timeout|lua_socket_keepalive_timeout]] config directive will be used. If the <code>0</code> value is given, then the timeout interval is unlimited.
 
@@ -4123,7 +4148,7 @@ By default, the corresponding Nginx handler (e.g., [[#rewrite_by_lua|rewrite_by_
 
 When the user "light thread" terminates with a Lua error, however, it will not abort other running "light threads" like the "entry thread" does.
 
-Due to the limitation in the Nginx subrequest model, it is not allowed to abort a running Nginx subrequest in general. So it is also prohibited to abort a running "light thread" that is pending on one ore more Nginx subrequests. You must call [[#ngx.thread.wait|ngx.thread.wait]] to wait for those "light thread" to terminate before quitting the "world".
+Due to the limitation in the Nginx subrequest model, it is not allowed to abort a running Nginx subrequest in general. So it is also prohibited to abort a running "light thread" that is pending on one ore more Nginx subrequests. You must call [[#ngx.thread.wait|ngx.thread.wait]] to wait for those "light thread" to terminate before quitting the "world". A notable exception here is that you can abort pending subrequests by calling [[#ngx.exit|ngx.exit]] with and only with the status code <code>ngx.ERROR</code> (-1), <code>408</code>, <code>444</code>, or <code>499</code>.
 
 The "light threads" are not scheduled in a pre-emptive way. In other words, no time-slicing is performed automatically. A "light thread" will keep running exclusively on the CPU until
 # a (nonblocking) I/O operation cannot be completed in a single run,
@@ -4480,7 +4505,7 @@ and then accessing it from <code>nginx.conf</code>:
 
 <geshi lang="nginx">
     location /lua {
-        content_lua_by_lua '
+        content_by_lua '
             local mydata = require "mydata"
             ngx.say(mydata.get_age("dog"))
         ';
@@ -4514,7 +4539,7 @@ This issue is due to limitations in the Nginx event model and only appears to af
 * As the standard Lua 5.1 interpreter's VM is not fully resumable, the methods [[#ngx.location.capture|ngx.location.capture]], [[#ngx.location.capture_multi|ngx.location.capture_multi]], [[#ngx.redirect|ngx.redirect]], [[#ngx.exec|ngx.exec]], and [[#ngx.exit|ngx.exit]] cannot be used within the context of a Lua [http://www.lua.org/manual/5.1/manual.html#pdf-pcall pcall()] or [http://www.lua.org/manual/5.1/manual.html#pdf-xpcall xpcall()] when the standard Lua 5.1 interpreter is used and the <code>attempt to yield across metamethod/C-call boundary</code> error will be produced. Please use LuaJIT 2.0, which supports a fully resumable VM, to avoid this.
 
 == Lua Variable Scope ==
-Care should be taken when importing modules and this form should be used:
+Care must be taken when importing modules and this form should be used:
 
 <geshi lang="lua">
     local xxx = require('xxx')
@@ -4526,12 +4551,7 @@ Care should be taken when importing modules and this form should be used:
     require('xxx')
 </geshi>
 
-: If the old form is required, force reload the module for every request by using the <code>package.loaded.<module></code> command:
-
-<geshi lang="lua">
-    package.loaded.xxx = nil
-    require('xxx')
-</geshi>
+Here is the reason: by design, the global environment has exactly the same lifetime as the Nginx request handler associated with it. Each request handler has its own set of Lua global variables and that is the idea of request isolation. The Lua module is actually loaded by the first Nginx request handler and is cached by the <code>require()</code> built-in in the package.loaded table for later reference, and <code>require()</code> has the side effect of setting a global variable to the loaded module table. But this global variable will be cleared at the end of the request handler,  and every subsequent request handler all has its own (clean) global environment. So one will get Lua exception for accessing the <code>nil</code> value.
 
 It is recommended to always place the following piece of code at the end of Lua modules that use the I/O operations to prevent casual use of module-level global variables that are shared among ''all'' requests:
 
@@ -4677,7 +4697,7 @@ On a ThinkPad T400 2.80 GHz laptop, the Hello World example readily achieves 28k
 The module is compatible with the following versions of Nginx:
 
 * 1.3.x (last tested: 1.3.7)
-* 1.2.x (last tested: 1.2.4)
+* 1.2.x (last tested: 1.2.6)
 * 1.1.x (last tested: 1.1.5)
 * 1.0.x (last tested: 1.0.15)
 * 0.9.x (last tested: 0.9.4)

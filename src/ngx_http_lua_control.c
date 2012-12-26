@@ -315,18 +315,23 @@ ngx_http_lua_ngx_exit(lua_State *L)
 
     if (ctx->no_abort
         && rc != NGX_ERROR
+        && rc != NGX_HTTP_CLOSE
         && rc != NGX_HTTP_REQUEST_TIME_OUT
         && rc != NGX_HTTP_CLIENT_CLOSED_REQUEST)
     {
         return luaL_error(L, "attempt to abort with pending subrequests");
     }
 
-    if (rc >= NGX_HTTP_SPECIAL_RESPONSE && ctx->headers_sent) {
-
+    if (ctx->headers_sent
+        && rc >= NGX_HTTP_SPECIAL_RESPONSE
+        && rc != NGX_HTTP_REQUEST_TIME_OUT
+        && rc != NGX_HTTP_CLIENT_CLOSED_REQUEST
+        && rc != NGX_HTTP_CLOSE)
+    {
         if (rc != (ngx_int_t) r->headers_out.status) {
-            return luaL_error(L, "attempt to set status %d via ngx.exit after "
-                              "sending out the response status %d", (int) rc,
-                              (int) r->headers_out.status);
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "attempt to "
+                          "set status %i via ngx.exit after sending out the "
+                          "response status %ui", rc, r->headers_out.status);
         }
 
         rc = NGX_HTTP_OK;
@@ -382,12 +387,17 @@ ngx_http_lua_on_abort(lua_State *L)
 
     lua_pushlightuserdata(L, &ngx_http_lua_coroutines_key);
     lua_rawget(L, LUA_REGISTRYINDEX);
-    lua_pushvalue(L, -3);
+    lua_pushvalue(L, -2);
+
+    dd("on_wait thread 1: %p", lua_tothread(L, -1));
+
     coctx->co_ref = luaL_ref(L, -2);
     lua_pop(L, 1);
 
     coctx->is_uthread = 1;
     ctx->on_abort_co_ctx = coctx;
+
+    dd("on_wait thread 2: %p", coctx->co);
 
     coctx->co_status = NGX_HTTP_LUA_CO_SUSPENDED;
     coctx->parent_co_ctx = ctx->cur_co_ctx;

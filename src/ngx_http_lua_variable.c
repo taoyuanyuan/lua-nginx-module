@@ -99,10 +99,7 @@ ngx_http_lua_var_get(lua_State *L)
 
     p = (u_char *) luaL_checklstring(L, -1, &len);
 
-    lowcase = ngx_palloc(r->pool, len);
-    if (lowcase == NULL) {
-        return luaL_error(L, "memory allocation error");
-    }
+    lowcase = lua_newuserdata(L, len);
 
     hash = ngx_hash_strlow(lowcase, p, len);
 
@@ -158,12 +155,7 @@ ngx_http_lua_var_set(lua_State *L)
 
     p = (u_char *) luaL_checklstring(L, 2, &len);
 
-    lowcase = ngx_palloc(r->pool, len + 1);
-    if (lowcase == NULL) {
-        return luaL_error(L, "memory allocation error");
-    }
-
-    lowcase[len] = '\0';
+    lowcase = lua_newuserdata(L, len);
 
     hash = ngx_hash_strlow(lowcase, p, len);
 
@@ -197,7 +189,7 @@ ngx_http_lua_var_set(lua_State *L)
 
     default:
         msg = lua_pushfstring(L, "string, number, or nil expected, "
-                "but got %s", lua_typename(L, value_type));
+                              "but got %s", lua_typename(L, value_type));
         return luaL_argerror(L, 1, msg);
     }
 
@@ -268,14 +260,15 @@ ngx_http_lua_var_set(lua_State *L)
         }
 
         return luaL_error(L, "variable \"%s\" cannot be assigned a value",
-                lowcase);
+                          lowcase);
     }
 
     /* variable not found */
 
     return luaL_error(L, "varaible \"%s\" not found for writing; "
-                "maybe it is a built-in variable that is not changeable "
-                "or you sould have used \"set $%s '';\" earlier "
-                "in the config file", lowcase, lowcase);
+                      "maybe it is a built-in variable that is not changeable "
+                      "or you forgot to use \"set $%s '';\" "
+                      "in the config file to define it first",
+                      lowcase, lowcase);
 }
 
