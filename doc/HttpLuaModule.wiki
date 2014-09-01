@@ -10,7 +10,7 @@ This module is under active development and is production ready.
 
 = Version =
 
-This document describes ngx_lua [https://github.com/chaoslawful/lua-nginx-module/tags v0.7.19] released on 27 March 2013.
+This document describes ngx_lua [https://github.com/openresty/lua-nginx-module/tags v0.9.11] released on 16 August 2014.
 
 = Synopsis =
 <geshi lang="nginx">
@@ -183,18 +183,21 @@ This document describes ngx_lua [https://github.com/chaoslawful/lua-nginx-module
 
 = Description =
 
-This module embeds Lua, via the standard Lua interpreter or [http://luajit.org/luajit.html LuaJIT 2.0], into Nginx and by leveraging Nginx's subrequests, allows the integration of the powerful Lua threads (Lua coroutines) into the Nginx event model.
+This module embeds Lua, via the standard Lua 5.1 interpreter or [http://luajit.org/luajit.html LuaJIT 2.0/2.1], into Nginx and by leveraging Nginx's subrequests, allows the integration of the powerful Lua threads (Lua coroutines) into the Nginx event model.
 
-Unlike [http://httpd.apache.org/docs/2.3/mod/mod_lua.html Apache's mod_lua] and [http://redmine.lighttpd.net/wiki/1/Docs:ModMagnet Lighttpd's mod_magnet], Lua code executed using this module can be ''100% non-blocking'' on network traffic as long as the [[#Nginx API for Lua|Nginx API for Lua]] provided by this module is used to handle
+Unlike [https://httpd.apache.org/docs/trunk/mod/mod_lua.html Apache's mod_lua] and [http://redmine.lighttpd.net/wiki/1/Docs:ModMagnet Lighttpd's mod_magnet], Lua code executed using this module can be ''100% non-blocking'' on network traffic as long as the [[#Nginx API for Lua|Nginx API for Lua]] provided by this module is used to handle
 requests to upstream services such as MySQL, PostgreSQL, Memcached, Redis, or upstream HTTP web services.
 
 At least the following Lua libraries and Nginx modules can be used with this ngx_lua module:
 
-* [https://github.com/agentzh/lua-resty-memcached lua-resty-memcached]
-* [https://github.com/agentzh/lua-resty-mysql lua-resty-mysql]
-* [https://github.com/agentzh/lua-resty-redis lua-resty-redis]
-* [https://github.com/agentzh/lua-resty-dns lua-resty-dns]
-* [https://github.com/agentzh/lua-resty-upload lua-resty-upload]
+* [https://github.com/openresty/lua-resty-memcached lua-resty-memcached]
+* [https://github.com/openresty/lua-resty-mysql lua-resty-mysql]
+* [https://github.com/openresty/lua-resty-redis lua-resty-redis]
+* [https://github.com/openresty/lua-resty-dns lua-resty-dns]
+* [https://github.com/openresty/lua-resty-upload lua-resty-upload]
+* [https://github.com/openresty/lua-resty-websocket lua-resty-websocket]
+* [https://github.com/openresty/lua-resty-lock lua-resty-lock]
+* [https://github.com/openresty/lua-resty-string lua-resty-string]
 * [[HttpMemcModule|ngx_memc]]
 * [https://github.com/FRiCKLE/ngx_postgres ngx_postgres]
 * [[HttpRedis2Module|ngx_redis2]]
@@ -208,41 +211,640 @@ The Lua interpreter or LuaJIT instance is shared across all the requests in a si
 
 Loaded Lua modules persist in the nginx worker process level resulting in a small memory footprint in Lua even when under heavy loads.
 
+= Typical Uses =
+
+Just to name a few:
+
+* Mashup'ing and processing outputs of various nginx upstream outputs (proxy, drizzle, postgres, redis, memcached, and etc) in Lua,
+* doing arbitrarily complex access control and security checks in Lua before requests actually reach the upstream backends,
+* manipulating response headers in an arbitrary way (by Lua)
+* fetching backend information from external storage backends (like redis, memcached, mysql, postgresql) and use that information to choose which upstream backend to access on-the-fly,
+* coding up arbitrarily complex web applications in a content handler using synchronous but still non-blocking access to the database backends and other storage,
+* doing very complex URL dispatch in Lua at rewrite phase,
+* using Lua to implement advanced caching mechanism for Nginx's subrequests and arbitrary locations.
+
+The possibilities are unlimited as the module allows bringing together various elements within Nginx as well as exposing the power of the Lua language to the user. The module provides the full flexibility of scripting while offering performance levels comparable with native C language programs both in terms of CPU time as well as memory footprint. This is particularly the case when LuaJIT 2.x is enabled.
+
+Other scripting language implementations typically struggle to match this performance level.
+
+The Lua state (Lua VM instance) is shared across all the requests handled by a single nginx worker process to minimize memory use.
+
+= Nginx Compatibility =
+The latest module is compatible with the following versions of Nginx:
+
+* 1.7.x (last tested: 1.7.4)
+* 1.6.x
+* 1.5.x (last tested: 1.5.12)
+* 1.4.x (last tested: 1.4.4)
+* 1.3.x (last tested: 1.3.11)
+* 1.2.x (last tested: 1.2.9)
+* 1.1.x (last tested: 1.1.5)
+* 1.0.x (last tested: 1.0.15)
+* 0.9.x (last tested: 0.9.4)
+* 0.8.x >= 0.8.54 (last tested: 0.8.54)
+
+= Installation =
+
+The [http://openresty.org ngx_openresty bundle] can be used to install Nginx, ngx_lua, either one of the standard Lua 5.1 interpreter or LuaJIT 2.0/2.1, as well as a package of powerful companion Nginx modules. The basic installation step is a simple <code>./configure --with-luajit && make && make install</code>.
+
+Alternatively, ngx_lua can be manually compiled into Nginx:
+
+# Install LuaJIT 2.0 or 2.1 (recommended) or Lua 5.1 (Lua 5.2 is ''not'' supported yet). LuaJIT can be downloaded from the [http://luajit.org/download.html the LuaJIT project website] and Lua 5.1, from the [http://www.lua.org/ Lua project website].  Some distribution package managers also distribute LuajIT and/or Lua.
+# Download the latest version of the ngx_devel_kit (NDK) module [http://github.com/simpl/ngx_devel_kit/tags HERE].
+# Download the latest version of ngx_lua [http://github.com/openresty/lua-nginx-module/tags HERE].
+# Download the latest version of Nginx [http://nginx.org/ HERE] (See [[#Nginx Compatibility|Nginx Compatibility]])
+
+Build the source with this module:
+
+<geshi lang="bash">
+    wget 'http://nginx.org/download/nginx-1.7.4.tar.gz'
+    tar -xzvf nginx-1.7.4.tar.gz
+    cd nginx-1.7.4/
+
+    # tell nginx's build system where to find LuaJIT 2.0:
+    export LUAJIT_LIB=/path/to/luajit/lib
+    export LUAJIT_INC=/path/to/luajit/include/luajit-2.0
+
+    # tell nginx's build system where to find LuaJIT 2.1:
+    export LUAJIT_LIB=/path/to/luajit/lib
+    export LUAJIT_INC=/path/to/luajit/include/luajit-2.1
+ 
+    # or tell where to find Lua if using Lua instead:
+    #export LUA_LIB=/path/to/lua/lib
+    #export LUA_INC=/path/to/lua/include
+ 
+    # Here we assume Nginx is to be installed under /opt/nginx/.
+    ./configure --prefix=/opt/nginx \
+            --add-module=/path/to/ngx_devel_kit \
+            --add-module=/path/to/lua-nginx-module
+ 
+    make -j2
+    make install
+</geshi>
+
+== C Macro Configurations ==
+
+While building this module either via OpenResty or with the NGINX core, you can define the following C macros via the C compiler options:
+
+* <code>NGX_LUA_USE_ASSERT</code>
+: When defined, will enable assertions in the ngx_lua C code base. Recommended for debugging or testing builds. It can introduce some (small) runtime overhead when enabled. This macro was first introduced in the <code>v0.9.10</code> release.
+* <code>NGX_LUA_ABORT_AT_PANIC</code>
+: When the Lua/LuaJIT VM panics, ngx_lua will instruct the current nginx worker process to quit gracefully by default. By specifying this C macro, ngx_lua will abort the current nginx worker process (which usually result in a core dump file) immediately. This option is useful for debugging VM panics. This option was first introduced in the <code>v0.9.8</code> release.
+* <code>NGX_LUA_NO_FFI_API</code>
+: Excludes pure C API functions for FFI-based Lua API for NGINX (as required by [https://github.com/openresty/lua-resty-core#readme lua-resty-core], for example). Enabling this macro can make the resulting binary code size smaller.
+
+To enable one or more of these macros, just pass extra C compiler options to the <code>./configure</code> script of either NGINX or OpenResty. For instance,
+
+<geshi>
+    ./configure --with-cc-opt="-DNGX_LUA_USE_ASSERT -DNGX_LUA_ABORT_AT_PANIC"
+</geshi>
+
+== Installation on Ubuntu 11.10 ==
+
+Note that it is recommended to use LuaJIT 2.0 or LuaJIT 2.1 instead of the standard Lua 5.1 interpreter wherever possible.
+
+If the standard Lua 5.1 interpreter is required however, run the following command to install it from the Ubuntu repository:
+
+<geshi lang="bash">
+apt-get install -y lua5.1 liblua5.1-0 liblua5.1-0-dev
+</geshi>
+
+Everything should be installed correctly, except for one small tweak.
+
+Library name <code>liblua.so</code> has been changed in liblua5.1 package, it only comes with <code>liblua5.1.so</code>, which needs to be symlinked to <code>/usr/lib</code> so it could be found during the configuration process.
+
+<geshi lang="bash">
+ln -s /usr/lib/x86_64-linux-gnu/liblua5.1.so /usr/lib/liblua.so
+</geshi>
+
+= Community =
+
+== English Mailing List ==
+
+The [https://groups.google.com/group/openresty-en openresty-en] mailing list is for English speakers.
+
+== Chinese Mailing List ==
+
+The [https://groups.google.com/group/openresty openresty] mailing list is for Chinese speakers.
+
+= Code Repository =
+
+The code repository of this project is hosted on github at [http://github.com/openresty/lua-nginx-module openresty/lua-nginx-module].
+
+= Bugs and Patches =
+
+Please submit bug reports, wishlists, or patches by
+
+# creating a ticket on the [https://github.com/openresty/lua-nginx-module/issues GitHub Issue Tracker],
+# or posting to the [[#Community|OpenResty community]].
+
+= Lua/LuaJIT bytecode support =
+
+As from the <code>v0.5.0rc32</code> release, all <code>*_by_lua_file</code> configure directives (such as [[#content_by_lua_file|content_by_lua_file]]) support loading Lua 5.1 and LuaJIT 2.0/2.1 raw bytecode files directly.
+
+Please note that the bytecode format used by LuaJIT 2.0/2.1 is not compatible with that used by the standard Lua 5.1 interpreter. So if using LuaJIT 2.0/2.1 with ngx_lua, LuaJIT compatible bytecode files must be generated as shown:
+
+<geshi lang="bash">
+    /path/to/luajit/bin/luajit -b /path/to/input_file.lua /path/to/output_file.luac
+</geshi>
+
+The <code>-bg</code> option can be used to include debug information in the LuaJIT bytecode file:
+
+<geshi lang="bash">
+    /path/to/luajit/bin/luajit -bg /path/to/input_file.lua /path/to/output_file.luac
+</geshi>
+
+Please refer to the official LuaJIT documentation on the <code>-b</code> option for more details:
+
+http://luajit.org/running.html#opt_b
+
+Also, the bytecode files generated by LuaJIT 2.1 is ''not'' compatible with LuaJIT 2.0, and vice versa. The support for LuaJIT 2.1 bytecode was first added in ngx_lua v0.9.3.
+
+Similarly, if using the standard Lua 5.1 interpreter with ngx_lua, Lua compatible bytecode files must be generated using the <code>luac</code> commandline utility as shown:
+
+<geshi lang="bash">
+    luac -o /path/to/output_file.luac /path/to/input_file.lua
+</geshi>
+
+Unlike as with LuaJIT, debug information is included in standard Lua 5.1 bytecode files by default. This can be striped out by specifying the <code>-s</code> option as shown:
+
+<geshi lang="bash">
+    luac -s -o /path/to/output_file.luac /path/to/input_file.lua
+</geshi>
+
+Attempts to load standard Lua 5.1 bytecode files into ngx_lua instances linked to LuaJIT 2.0/2.1 or vice versa, will result in an error message, such as that below, being logged into the Nginx <code>error.log</code> file:
+
+<geshi lang="text">
+    [error] 13909#0: *1 failed to load Lua inlined code: bad byte-code header in /path/to/test_file.luac
+</geshi>
+
+Loading bytecode files via the Lua primitives like <code>require</code> and <code>dofile</code> should always work as expected.
+
+= System Environment Variable Support =
+
+If you want to access the system environment variable, say, <code>foo</code>, in Lua via the standard Lua API [http://www.lua.org/manual/5.1/manual.html#pdf-os.getenv os.getenv], then you should also list this environment variable name in your <code>nginx.conf</code> file via the [http://nginx.org/en/docs/ngx_core_module.html#env env directive]. For example,
+
+<geshi lang="nginx">
+    env foo;
+</geshi>
+
+= HTTP 1.0 support =
+
+The HTTP 1.0 protocol does not support chunked output and requires an explicit <code>Content-Length</code> header when the response body is not empty in order to support the HTTP 1.0 keep-alive.
+So when a HTTP 1.0 request is made and the [[#lua_http10_buffering|lua_http10_buffering]] directive is turned <code>on</code>, ngx_lua will buffer the
+output of [[#ngx.say|ngx.say]] and [[#ngx.print|ngx.print]] calls and also postpone sending response headers until all the response body output is received.
+At that time ngx_lua can calculate the total length of the body and construct a proper <code>Content-Length</code> header to return to the HTTP 1.0 client.
+If the <code>Content-Length</code> response header is set in the running Lua code, however, this buffering will be disabled even if the [[#lua_http10_buffering|lua_http10_buffering]] directive is turned <code>on</code>.
+
+For large streaming output responses, it is important to disable the [[#lua_http10_buffering|lua_http10_buffering]] directive to minimise memory usage.
+
+Note that common HTTP benchmark tools such as <code>ab</code> and <code>http_load</code> issue HTTP 1.0 requests by default.
+To force <code>curl</code> to send HTTP 1.0 requests, use the <code>-0</code> option.
+
+= Statically Linking Pure Lua Modules =
+
+When LuaJIT 2.x is used, it is possible to statically link the bytecode of pure Lua modules into the Nginx executable.
+
+Basically you use the <code>luajit</code> executable to compile <code>.lua</code> Lua module files to <code>.o</code> object files containing the exported bytecode data, and then link the <code>.o</code> files directly in your Nginx build.
+
+Below is a trivial example to demonstrate this. Consider that we have the following <code>.lua</code> file named <code>foo.lua</code>:
+
+<geshi lang="lua">
+    -- foo.lua
+    local _M = {}
+
+    function _M.go()
+        print("Hello from foo")
+    end
+
+    return _M
+</geshi>
+
+And then we compile this <code>.lua</code> file to <code>foo.o</code> file:
+
+    /path/to/luajit/bin/luajit -bg foo.lua foo.o
+
+What matters here is the name of the <code>.lua</code> file, which determines how you use this module later on the Lua land. The file name <code>foo.o</code> does not matter at all except the <code>.o</code> file extension (which tells <code>luajit</code> what output format is used). If you want to strip the Lua debug information from the resulting bytecode, you can just specify the <code>-b</code> option above instead of <code>-bg</code>.
+
+Then when building Nginx or OpenResty, pass the <code>--with-ld-opt="foo.o"</code> option to the <code>./configure</code> script:
+
+<geshi lang="bash">
+    ./configure --with-ld-opt="/path/to/foo.o" ...
+</geshi>
+
+Finally, you can just do the following in any Lua code run by ngx_lua:
+
+<geshi lang="lua">
+    local foo = require "foo"
+    foo.go()
+</geshi>
+
+And this piece of code no longer depends on the external <code>foo.lua</code> file any more because it has already been compiled into the <code>nginx</code> executable.
+
+If you want to use dot in the Lua module name when calling <code>require</code>, as in
+
+<geshi lang="lua">
+    local foo = require "resty.foo"
+</geshi>
+
+then you need to rename the <code>foo.lua</code> file to <code>resty_foo.lua</code> before compiling it down to a <code>.o</code> file with the <code>luajit</code> command-line utility.
+
+It is important to use exactly the same version of LuaJIT when compiling <code>.lua</code> files to <code>.o</code> files as building nginx + ngx_lua. This is because the LuaJIT bytecode format may be incompatible between different LuaJIT versions. When the bytecode format is incompatible, you will see a Lua runtime error saying that the Lua module is not found.
+
+When you have multiple <code>.lua</code> files to compile and link, then just specify their <code>.o</code> files at the same time in the value of the <code>--with-ld-opt</code> option. For instance,
+
+<geshi lang="bash">
+    ./configure --with-ld-opt="/path/to/foo.o /path/to/bar.o" ...
+</geshi>
+
+If you have just too many <code>.o</code> files, then it might not be feasible to name them all in a single command. In this case, you can build a static library (or archive) for your <code>.o</code> files, as in
+
+<geshi lang="bash">
+    ar rcus libmyluafiles.a *.o
+</geshi>
+
+then you can link the <code>myluafiles</code> archive as a whole to your nginx executable:
+
+<geshi lang="bash">
+    ./configure \
+        --with-ld-opt="-L/path/to/lib -Wl,--whole-archive -lmyluafiles -Wl,--no-whole-archive"
+</geshi>
+
+where <code>/path/to/lib</code> is the path of the directory containing the <code>libmyluafiles.a</code> file. It should be noted that the linker option <code>--whole-archive</code> is required here because otherwise our archive will be skipped because no symbols in our archive are mentioned in the main parts of the nginx executable.
+
+= Data Sharing within an Nginx Worker =
+
+To globally share data among all the requests handled by the same nginx worker process, encapsulate the shared data into a Lua module, use the Lua <code>require</code> builtin to import the module, and then manipulate the shared data in Lua. This works because required Lua modules are loaded only once and all coroutines will share the same copy of the module (both its code and data). Note however that Lua global variables (note, not module-level variables) WILL NOT persist between requests because of the one-coroutine-per-request isolation design.
+
+Here is a complete small example:
+
+<geshi lang="lua">
+    -- mydata.lua
+    local _M = {}
+
+    local data = {
+        dog = 3,
+        cat = 4,
+        pig = 5,
+    }
+ 
+    function _M.get_age(name)
+        return data[name]
+    end
+
+    return _M
+</geshi>
+
+and then accessing it from <code>nginx.conf</code>:
+
+<geshi lang="nginx">
+    location /lua {
+        content_by_lua '
+            local mydata = require "mydata"
+            ngx.say(mydata.get_age("dog"))
+        ';
+    }
+</geshi>
+
+The <code>mydata</code> module in this example will only be loaded and run on the first request to the location <code>/lua</code>,
+and all subsequent requests to the same nginx worker process will use the reloaded instance of the
+module as well as the same copy of the data in it, until a <code>HUP</code> signal is sent to the Nginx master process to force a reload.
+This data sharing technique is essential for high performance Lua applications based on this module.
+
+Note that this data sharing is on a ''per-worker'' basis and not on a ''per-server'' basis. That is, when there are multiple nginx worker processes under an Nginx master, data sharing cannot cross the process boundary between these workers.
+
+If server-wide data sharing is required, then use one or more of the following approaches:
+
+# Use the [[#ngx.shared.DICT|ngx.shared.DICT]] API provided by this module.
+# Use only a single nginx worker and a single server (this is however not recommended when there is a multi core CPU or multiple CPUs in a single machine).
+# Use data storage mechanisms such as <code>memcached</code>, <code>redis</code>, <code>MySQL</code> or <code>PostgreSQL</code>. [http://openresty.org The ngx_openresty bundle] associated with this module comes with a set of companion Nginx modules and Lua libraries that provide interfaces with these data storage mechanisms.
+
+= Known Issues =
+
+== TCP socket connect operation issues ==
+The [[#tcpsock:connect|tcpsock:connect]] method may indicate <code>success</code> despite connection failures such as with <code>Connection Refused</code> errors. 
+
+However, later attempts to manipulate the cosocket object will fail and return the actual error status message generated by the failed connect operation. 
+
+This issue is due to limitations in the Nginx event model and only appears to affect Mac OS X.
+
+== Lua Coroutine Yielding/Resuming ==
+* Because Lua's <code>dofile</code> and <code>require</code> builtins are currently implemented as C functions in both Lua 5.1 and LuaJIT 2.0/2.1, if the Lua file being loaded by <code>dofile</code> or <code>require</code> invokes [[#ngx.location.capture|ngx.location.capture*]], [[#ngx.exec|ngx.exec]], [[#ngx.exit|ngx.exit]], or other API functions requiring yielding in the *top-level* scope of the Lua file, then the Lua error "attempt to yield across C-call boundary" will be raised. To avoid this, put these calls requiring yielding into your own Lua functions in the Lua file instead of the top-level scope of the file.
+* As the standard Lua 5.1 interpreter's VM is not fully resumable, the methods [[#ngx.location.capture|ngx.location.capture]], [[#ngx.location.capture_multi|ngx.location.capture_multi]], [[#ngx.redirect|ngx.redirect]], [[#ngx.exec|ngx.exec]], and [[#ngx.exit|ngx.exit]] cannot be used within the context of a Lua [http://www.lua.org/manual/5.1/manual.html#pdf-pcall pcall()] or [http://www.lua.org/manual/5.1/manual.html#pdf-xpcall xpcall()] or even the first line of the <code>for ... in ...</code> statement when the standard Lua 5.1 interpreter is used and the <code>attempt to yield across metamethod/C-call boundary</code> error will be produced. Please use LuaJIT 2.x, which supports a fully resumable VM, to avoid this.
+
+== Lua Variable Scope ==
+Care must be taken when importing modules and this form should be used:
+
+<geshi lang="lua">
+    local xxx = require('xxx')
+</geshi>
+
+instead of the old deprecated form:
+
+<geshi lang="lua">
+    require('xxx')
+</geshi>
+
+Here is the reason: by design, the global environment has exactly the same lifetime as the Nginx request handler associated with it. Each request handler has its own set of Lua global variables and that is the idea of request isolation. The Lua module is actually loaded by the first Nginx request handler and is cached by the <code>require()</code> built-in in the <code>package.loaded</code> table for later reference, and the <code>module()</code> builtin used by some Lua modules has the side effect of setting a global variable to the loaded module table. But this global variable will be cleared at the end of the request handler,  and every subsequent request handler all has its own (clean) global environment. So one will get Lua exception for accessing the <code>nil</code> value.
+
+Generally, use of Lua global variables is a really really bad idea in the context of ngx_lua because
+
+# misuse of Lua globals has very bad side effects for concurrent requests when these variables are actually supposed to be local only,
+# Lua global variables require Lua table look-up in the global environment (which is just a Lua table), which is kinda expensive, and
+# some Lua global variable references are just typos, which are hard to debug.
+
+It's *highly* recommended to always declare them via "local" in the scope that is reasonable.
+
+To find out all the uses of Lua global variables in your Lua code, you can run the [https://github.com/openresty/nginx-devel-utils/blob/master/lua-releng lua-releng tool] across all your .lua source files:
+<geshi lang="text">
+$ lua-releng
+Checking use of Lua global variables in file lib/foo/bar.lua ...
+        1       [1489]  SETGLOBAL       7 -1    ; contains
+        55      [1506]  GETGLOBAL       7 -3    ; setvar
+        3       [1545]  GETGLOBAL       3 -4    ; varexpand
+</geshi>
+The output says that the line 1489 of file <code>lib/foo/bar.lua</code> writes to a global variable named <code>contains</code>, the line 1506 reads from the global variable <code>setvar</code>, and line 1545 reads the global <code>varexpand</code>.
+
+This tool will guarantee that local variables in the Lua module functions are all declared with the <code>local</code> keyword, otherwise a runtime exception will be thrown. It prevents undesirable race conditions while accessing such variables. See [[#Data_Sharing_within_an_Nginx_Worker|Data Sharing within an Nginx Worker]] for the reasons behind this.
+
+== Locations Configured by Subrequest Directives of Other Modules ==
+The [[#ngx.location.capture|ngx.location.capture]] and [[#ngx.location.capture_multi|ngx.location.capture_multi]] directives cannot capture locations that include the [[HttpEchoModule#echo_location|echo_location]], [[HttpEchoModule#echo_location_async|echo_location_async]], [[HttpEchoModule#echo_subrequest|echo_subrequest]], or [[HttpEchoModule#echo_subrequest_async|echo_subrequest_async]] directives.
+
+<geshi lang="nginx">
+    location /foo {
+        content_by_lua '
+            res = ngx.location.capture("/bar")
+        ';
+    }
+    location /bar {
+        echo_location /blah;
+    }
+    location /blah {
+        echo "Success!";
+    }
+</geshi>
+
+<geshi lang="nginx">
+    $ curl -i http://example.com/foo
+</geshi>
+
+will not work as expected.
+
+== Special PCRE Sequences ==
+PCRE sequences such as <code>\d</code>, <code>\s</code>, or <code>\w</code>, require special attention because in string literals, the backslash character, <code>\</code>, is stripped out by both the Lua language parser and by the Nginx config file parser before processing. So the following snippet will not work as expected:
+
+<geshi lang="nginx">
+    # nginx.conf
+    ? location /test {
+    ?     content_by_lua '
+    ?         local regex = "\d+"  -- THIS IS WRONG!!
+    ?         local m = ngx.re.match("hello, 1234", regex)
+    ?         if m then ngx.say(m[0]) else ngx.say("not matched!") end
+    ?     ';
+    ? }
+    # evaluates to "not matched!"
+</geshi>
+
+To avoid this, ''double'' escape the backslash:
+
+<geshi lang="nginx">
+    # nginx.conf
+    location /test {
+        content_by_lua '
+            local regex = "\\\\d+"
+            local m = ngx.re.match("hello, 1234", regex)
+            if m then ngx.say(m[0]) else ngx.say("not matched!") end
+        ';
+    }
+    # evaluates to "1234"
+</geshi>
+
+Here, <code>\\\\d+</code> is stripped down to <code>\\d+</code> by the Nginx config file parser and this is further stripped down to <code>\d+</code> by the Lua language parser before running.
+
+Alternatively, the regex pattern can be presented as a long-bracketed Lua string literal by encasing it in "long brackets", <code>&#91;[...]]</code>, in which case backslashes have to only be escaped once for the Nginx config file parser. 
+
+<geshi lang="nginx">
+    # nginx.conf
+    location /test {
+        content_by_lua '
+            local regex = [[\\d+]]
+            local m = ngx.re.match("hello, 1234", regex)
+            if m then ngx.say(m[0]) else ngx.say("not matched!") end
+        ';
+    }
+    # evaluates to "1234"
+</geshi>
+
+Here, <code>&#91;[\\d+]]</code> is stripped down to <code>&#91;[\d+]]</code> by the Nginx config file parser and this is processed correctly.
+
+Note that a longer from of the long bracket, <code>[=[...]=]</code>, may be required if the regex pattern contains <code>&#91;...]</code> sequences. 
+The <code>[=[...]=]</code> form may be used as the default form if desired.
+
+<geshi lang="nginx">
+    # nginx.conf
+    location /test {
+        content_by_lua '
+            local regex = [=[[0-9]+]=]
+            local m = ngx.re.match("hello, 1234", regex)
+            if m then ngx.say(m[0]) else ngx.say("not matched!") end
+        ';
+    }
+    # evaluates to "1234"
+</geshi>
+
+An alternative approach to escaping PCRE sequences is to ensure that Lua code is placed in external script files and executed using the various <code>*_by_lua_file</code> directives. 
+With this approach, the backslashes are only stripped by the Lua language parser and therefore only need to be escaped once each.
+
+<geshi lang="lua">
+    -- test.lua
+    local regex = "\\d+"
+    local m = ngx.re.match("hello, 1234", regex)
+    if m then ngx.say(m[0]) else ngx.say("not matched!") end
+    -- evaluates to "1234"
+</geshi>
+
+Within external script files, PCRE sequences presented as long-bracketed Lua string literals do not require modification. 
+ 
+<geshi lang="lua">
+    -- test.lua
+    local regex = [[\d+]]
+    local m = ngx.re.match("hello, 1234", regex)
+    if m then ngx.say(m[0]) else ngx.say("not matched!") end
+    -- evaluates to "1234"
+</geshi>
+
+== Mixing with SSI Not Supported ==
+
+Mixing SSI with ngx_lua in the same Nginx request is not supported at all. Just use ngx_lua exclusively. Everything you can do with SSI can be done atop ngx_lua anyway and it can be more efficient when using ngx_lua.
+
+== SPDY Mode Not Fully Supported ==
+
+Certain Lua APIs provided by ngx_lua do not work in Nginx's SPDY mode yet: [[#ngx.location.capture|ngx.location.capture]], [[#ngx.location.capture_multi|ngx.location.capture_multi]], and [[#ngx.req.socket|ngx.req.socket]].
+
+= TODO =
+
+== Short Term ==
+* review and apply Jader H. Silva's patch for <code>ngx.re.split()</code>.
+* review and apply vadim-pavlov's patch for [[#ngx.location.capture|ngx.location.capture]]'s <code>extra_headers</code> option
+* use <code>ngx_hash_t</code> to optimize the built-in header look-up process for [[#ngx.req.set_header|ngx.req.set_header]], [[#ngx.header.HEADER|ngx.header.HEADER]], and etc.
+* add configure options for different strategies of handling the cosocket connection exceeding in the pools.
+* add directives to run Lua codes when nginx stops.
+* add <code>ignore_resp_headers</code>, <code>ignore_resp_body</code>, and <code>ignore_resp</code> options to [[#ngx.location.capture|ngx.location.capture]] and [[#ngx.location.capture_multi|ngx.location.capture_multi]] methods, to allow micro performance tuning on the user side.
+
+== Longer Term ==
+* add automatic Lua code time slicing support by yielding and resuming the Lua VM actively via Lua's debug hooks.
+* add <code>stat</code> mode similar to [https://httpd.apache.org/docs/trunk/mod/mod_lua.html mod_lua].
+
+= Changes =
+
+The changes of every release of this module can be obtained from the ngx_openresty bundle's change logs:
+
+http://openresty.org/#Changes
+
+= Test Suite =
+
+The following dependencies are required to run the test suite:
+
+* Nginx version >= 1.4.2
+
+* Perl modules:
+** Test::Nginx: http://github.com/openresty/test-nginx 
+
+* Nginx modules:
+** [https://github.com/simpl/ngx_devel_kit ngx_devel_kit]
+** [http://github.com/openresty/set-misc-nginx-module ngx_set_misc]
+** [http://mdounin.ru/files/ngx_http_auth_request_module-0.2.tar.gz ngx_auth_request] (this is not needed if you're using Nginx 1.5.4+.
+** [http://github.com/openresty/echo-nginx-module ngx_echo]
+** [http://github.com/openresty/memc-nginx-module ngx_memc]
+** [http://github.com/openresty/srcache-nginx-module ngx_srcache]
+** ngx_lua (i.e., this module)
+** [http://github.com/openresty/lua-upstream-nginx-module ngx_lua_upstream]
+** [http://github.com/openresty/headers-more-nginx-module ngx_headers_more]
+** [http://github.com/openresty/drizzle-nginx-module ngx_drizzle]
+** [http://github.com/openresty/rds-json-nginx-module ngx_rds_json]
+** [https://github.com/FRiCKLE/ngx_coolkit ngx_coolkit]
+** [http://github.com/openresty/redis2-nginx-module ngx_redis2]
+
+The order in which these modules are added during configuration is important because the position of any filter module in the
+filtering chain determines the final output, for example. The correct adding order is shown above.
+
+* 3rd-party Lua libraries:
+** [http://www.kyne.com.au/~mark/software/lua-cjson.php lua-cjson]
+
+* Applications:
+** mysql: create database 'ngx_test', grant all privileges to user 'ngx_test', password is 'ngx_test'
+** memcached: listening on the default port, 11211.
+** redis: listening on the default port, 6379.
+
+See also the [https://github.com/openresty/lua-nginx-module/blob/master/util/build2.sh developer build script] for more details on setting up the testing environment.
+
+To run the whole test suite in the default testing mode:
+<geshi lang="text">
+    cd /path/to/lua-nginx-module
+    export PATH=/path/to/your/nginx/sbin:$PATH
+    prove -I/path/to/test-nginx/lib -r t
+</geshi>
+
+To run specific test files:
+<geshi lang="text">
+    cd /path/to/lua-nginx-module
+    export PATH=/path/to/your/nginx/sbin:$PATH
+    prove -I/path/to/test-nginx/lib t/002-content.t t/003-errors.t
+</geshi>
+
+To run a specific test block in a particular test file, add the line <code>--- ONLY</code> to the test block you want to run, and then use the `prove` utility to run that <code>.t</code> file.
+
+There are also various testing modes based on mockeagain, valgrind, and etc. Refer to the [http://search.cpan.org/perldoc?Test::Nginx Test::Nginx documentation] for more details for various advanced testing modes. See also the test reports for the Nginx test cluster running on Amazon EC2: http://qa.openresty.org.
+
+= Copyright and License =
+
+This module is licensed under the BSD license.
+
+Copyright (C) 2009-2014, by Xiaozhe Wang (chaoslawful) <chaoslawful@gmail.com>.
+
+Copyright (C) 2009-2014, by Yichun "agentzh" Zhang (章亦春) <agentzh@gmail.com>, CloudFlare Inc.
+
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+= See Also =
+
+* [http://github.com/openresty/lua-resty-memcached lua-resty-memcached] library based on ngx_lua cosocket.
+* [http://github.com/openresty/lua-resty-redis lua-resty-redis] library based on ngx_lua cosocket.
+* [http://github.com/openresty/lua-resty-mysql lua-resty-mysql] library based on ngx_lua cosocket.
+* [http://github.com/openresty/lua-resty-upload lua-resty-upload] library based on ngx_lua cosocket.
+* [http://github.com/openresty/lua-resty-dns lua-resty-dns] library based on ngx_lua cosocket.
+* [http://github.com/openresty/lua-resty-websocket lua-resty-websocket] library for both WebSocket server and client, based on ngx_lua cosocket.
+* [http://github.com/openresty/lua-resty-string lua-resty-string] library based on [http://luajit.org/ext_ffi.html LuaJIT FFI].
+* [http://github.com/openresty/lua-resty-lock lua-resty-lock] library for a nonblocking simple lock API.
+* [http://openresty.org/#RoutingMySQLQueriesBasedOnURIArgs Routing requests to different MySQL queries based on URI arguments]
+* [http://openresty.org/#DynamicRoutingBasedOnRedis Dynamic Routing Based on Redis and Lua]
+* [http://openresty.org/#UsingLuaRocks Using LuaRocks with ngx_lua]
+* [https://github.com/openresty/lua-nginx-module/wiki/Introduction Introduction to ngx_lua]
+* [http://github.com/simpl/ngx_devel_kit ngx_devel_kit]
+* [[HttpEchoModule]]
+* [[HttpDrizzleModule]]
+* [http://github.com/FRiCKLE/ngx_postgres postgres-nginx-module]
+* [[HttpMemcModule]]
+* [http://openresty.org The ngx_openresty bundle]
+* [https://github.com/openresty/nginx-systemtap-toolkit Nginx Systemtap Toolkit]
+
 = Directives =
+
+<!-- inline-toc -->
+
+== lua_use_default_type ==
+'''syntax:''' ''lua_use_default_type on | off''
+
+'''default:''' ''lua_use_default_type on''
+
+'''context:''' ''http, server, location, location if''
+
+Specifies whether to use the MIME type specified by the [http://nginx.org/en/docs/http/ngx_http_core_module.html#default_type default_type] directive for the default value of the <code>Content-Type</code> response header. If you do not want a default <code>Content-Type</code> response header for your Lua request handlers, then turn this directive off.
+
+This directive is turned on by default.
+
+This directive was first introduced in the <code>v0.9.1</code> release.
 
 == lua_code_cache ==
 '''syntax:''' ''lua_code_cache on | off''
 
 '''default:''' ''lua_code_cache on''
 
-'''context:''' ''main, server, location, location if''
+'''context:''' ''http, server, location, location if''
 
-Enables or disables the Lua code cache for [[#set_by_lua_file|set_by_lua_file]],
-[[#content_by_lua_file|content_by_lua_file]], [[#rewrite_by_lua_file|rewrite_by_lua_file]], and
-[[#access_by_lua_file|access_by_lua_file]], and also force Lua module reloading on a per-request basis.
+Enables or disables the Lua code cache for Lua code in <code>*_by_lua_file</code> directives (like [[#set_by_lua_file|set_by_lua_file]] and
+[[#content_by_lua_file|content_by_lua_file]]) and Lua modules.
 
-The Lua files referenced in [[#set_by_lua_file|set_by_lua_file]],
+When turning off, every request served by ngx_lua will run in a separate Lua VM instance, starting from the <code>0.9.3</code> release. So the Lua files referenced in [[#set_by_lua_file|set_by_lua_file]],
 [[#content_by_lua_file|content_by_lua_file]], [[#access_by_lua_file|access_by_lua_file]],
-and [[#rewrite_by_lua_file|rewrite_by_lua_file]] will not be cached
-and the Lua <code>package.loaded</code> table will be cleared
-at the entry point of every request (such that Lua modules
-will not be cached either). With this in place, developers can adopt an edit-and-refresh approach.
+and etc will not be cached
+and all Lua modules used will be loaded from scratch. With this in place, developers can adopt an edit-and-refresh approach.
 
 Please note however, that Lua code written inlined within nginx.conf
 such as those specified by [[#set_by_lua|set_by_lua]], [[#content_by_lua|content_by_lua]],
-[[#access_by_lua|access_by_lua]], and [[#rewrite_by_lua|rewrite_by_lua]] will ''always'' be
-cached because only the Nginx config file parser can correctly parse the <code>nginx.conf</code>
-file and the only ways to to reload the config file
-are to send a <code>HUP</code> signal or to restart Nginx.
+[[#access_by_lua|access_by_lua]], and [[#rewrite_by_lua|rewrite_by_lua]] will not be updated when you edit the inlined Lua code in your <code>nginx.conf</code> file because only the Nginx config file parser can correctly parse the <code>nginx.conf</code>
+file and the only way is to reload the config file
+by sending a <code>HUP</code> signal or just to restart Nginx.
 
-The ngx_lua module does not currently support the <code>stat</code> mode available with the
-Apache <code>mod_lua</code> module but this is planned for implementation in the future.
+Even when the code cache is enabled, Lua files which are loaded by <code>dofile</code> or <code>loadfile</code>
+in *_by_lua_file cannot be cached (unless you cache the results yourself). Usually you can either use the [[#init_by_lua|init_by_lua]]
+or [[#init-by_lua_file|init_by_lua_file]] directives to load all such files or just make these Lua files true Lua modules
+and load them via <code>require</code>.
+
+The ngx_lua module does not support the <code>stat</code> mode available with the
+Apache <code>mod_lua</code> module (yet).
 
 Disabling the Lua code cache is strongly
 discouraged for production use and should only be used during 
-development as it has a significant negative impact on overall performance.
-In addition, race conditions when reloading Lua modules are common for concurrent requests
-when the code cache is disabled.
+development as it has a significant negative impact on overall performance. For example, the performance a "hello world" Lua example can drop by an order of magnitude after disabling the Lua code cache.
 
 == lua_regex_cache_max_entries ==
 '''syntax:''' ''lua_regex_cache_max_entries <num>''
@@ -263,13 +865,28 @@ The default number of entries allowed is 1024 and when this limit is reached, ne
 
 Do not activate the <code>o</code> option for regular expressions (and/or <code>replace</code> string arguments for [[#ngx.re.sub|ngx.re.sub]] and [[#ngx.re.gsub|ngx.re.gsub]]) that are generated ''on the fly'' and give rise to infinite variations to avoid hitting the specified limit.
 
+== lua_regex_match_limit ==
+'''syntax:''' ''lua_regex_match_limit <num>''
+
+'''default:''' ''lua_regex_match_limit 0''
+
+'''context:''' ''http''
+
+Specifies the "match limit" used by the PCRE library when executing the [[#ngx.re.match|ngx.re API]]. To quote the PCRE manpage, "the limit ... has the effect of limiting the amount of backtracking that can take place."
+
+When the limit is hit, the error string "pcre_exec() failed: -8" will be returned by the [[#ngx.re.match|ngx.re API]] functions on the Lua land.
+
+When setting the limit to 0, the default "match limit" when compiling the PCRE library is used. And this is the default value of this directive.
+
+This directive was first introduced in the <code>v0.8.5</code> release.
+
 == lua_package_path ==
 
 '''syntax:''' ''lua_package_path <lua-style-path-str>''
 
 '''default:''' ''The content of LUA_PATH environ variable or Lua's compiled-in defaults.''
 
-'''context:''' ''main''
+'''context:''' ''http''
 
 Sets the Lua module search path used by scripts specified by [[#set_by_lua|set_by_lua]],
 [[#content_by_lua|content_by_lua]] and others. The path string is in standard Lua path form, and <code>;;</code>
@@ -283,7 +900,7 @@ As from the <code>v0.5.0rc29</code> release, the special notation <code>$prefix<
 
 '''default:''' ''The content of LUA_CPATH environment variable or Lua's compiled-in defaults.''
 
-'''context:''' ''main''
+'''context:''' ''http''
 
 Sets the Lua C-module search path used by scripts specified by [[#set_by_lua|set_by_lua]],
 [[#content_by_lua|content_by_lua]] and others. The cpath string is in standard Lua cpath form, and <code>;;</code>
@@ -301,12 +918,12 @@ As from the <code>v0.5.0rc29</code> release, the special notation <code>$prefix<
 
 Runs the Lua code specified by the argument <code><lua-script-str></code> on the global Lua VM level when the Nginx master process (if any) is loading the Nginx config file.
 
-When Nginx receives the <code>HUP</code> signal and starts reloading the config file, the Lua VM will also be re-created and <code>init_by_lua</code> will run again on the new Lua VM.
+When Nginx receives the <code>HUP</code> signal and starts reloading the config file, the Lua VM will also be re-created and <code>init_by_lua</code> will run again on the new Lua VM. In case that the [[#lua_code_cache|lua_code_cache]] directive is turned off (default on), the <code>init_by_lua</code> handler will run upon every request because in this special mode a standalone Lua VM is always created for each request.
 
 Usually you can register (true) Lua global variables or pre-load Lua modules at server start-up by means of this hook. Here is an example for pre-loading Lua modules:
 
 <geshi lang="nginx">
-    init_by_lua 'require "cjson"';
+    init_by_lua 'cjson = require "cjson"';
 
     server {
         location = /api {
@@ -341,6 +958,8 @@ But note that, the [[#lua_shared_dict|lua_shared_dict]]'s shm storage will not b
 
 Because the Lua code in this context runs before Nginx forks its worker processes (if any), data or code loaded here will enjoy the [http://en.wikipedia.org/wiki/Copy-on-write Copy-on-write (COW)] feature provided by many operating systems among all the worker processes, thus saving a lot of memory.
 
+Do *not* initialize your own Lua global variables in this context because use of Lua global variables have performance penalties and can lead to global namespace pollution (see the [[#Lua_Variable_Scope|Lua Variable Scope]] section for more details). The recommended way is to use proper [http://www.lua.org/manual/5.1/manual.html#5.3 Lua module] files (but do not use the standard Lua function [http://www.lua.org/manual/5.1/manual.html#pdf-module module()] to define Lua modules because it pollutes the global namespace as well) and call [http://www.lua.org/manual/5.1/manual.html#pdf-require require()] to load your own module files in <code>init_by_lua</code> or other contexts ([http://www.lua.org/manual/5.1/manual.html#pdf-require require()] does cache the loaded Lua modules in the global <code>package.loaded</code> table in the Lua registry so your modules will only loaded once for the whole Lua VM instance).
+
 Only a small set of the [[#Nginx API for Lua|Nginx API for Lua]] is supported in this context:
 
 * Logging APIs: [[#ngx.log|ngx.log]] and [[#print|print]],
@@ -368,25 +987,81 @@ When a relative path like <code>foo/bar.lua</code> is given, they will be turned
 
 This directive was first introduced in the <code>v0.5.5</code> release.
 
+== init_worker_by_lua ==
+
+'''syntax:''' ''init_worker_by_lua <lua-script-str>''
+
+'''context:''' ''http''
+
+'''phase:''' ''starting-worker''
+
+Runs the specified Lua code upon every Nginx worker process's startup when the master process is enabled. When the master process is disabled, this hook will just run after [[#init_by_lua|init_by_lua*]].
+
+This hook is often used to create per-worker reoccurring timers (via the [[#ngx.timer.at|ngx.timer.at]] Lua API), either for backend healthcheck or other timed routine work. Below is an example,
+
+<geshi lang="nginx">
+    init_worker_by_lua '
+        local delay = 3  -- in seconds
+        local new_timer = ngx.timer.at
+        local log = ngx.log
+        local ERR = ngx.ERR
+        local check
+
+        check = function(premature)
+            if not premature then
+                -- do the health check or other routine work
+                local ok, err = new_timer(delay, check)
+                if not ok then
+                    log(ERR, "failed to create timer: ", err)
+                    return
+                end
+            end
+        end
+
+        local ok, err = new_timer(delay, check)
+        if not ok then
+            log(ERR, "failed to create timer: ", err)
+            return
+        end
+    ';
+</geshi>
+
+This directive was first introduced in the <code>v0.9.5</code> release.
+
+== init_worker_by_lua_file ==
+
+'''syntax:''' ''init_worker_by_lua_file <lua-file-path>''
+
+'''context:''' ''http''
+
+'''phase:''' ''starting-worker''
+
+Similar to [[#init_worker_by_lua|init_worker_by_lua]], but accepts the file path to a Lua source file or Lua bytecode file.
+
+This directive was first introduced in the <code>v0.9.5</code> release.
+
 == set_by_lua ==
 
 '''syntax:''' ''set_by_lua $res <lua-script-str> [$arg1 $arg2 ...]''
 
 '''context:''' ''server, server if, location, location if''
 
-'''phase:''' ''server-rewrite, rewrite''
+'''phase:''' ''rewrite''
 
 Executes code specified in <code><lua-script-str></code> with optional input arguments <code>$arg1 $arg2 ...</code>, and returns string output to <code>$res</code>. 
 The code in <code><lua-script-str></code> can make [[#Nginx API for Lua|API calls]] and can retrieve input arguments from the <code>ngx.arg</code> table (index starts from <code>1</code> and increases sequentially).
 
 This directive is designed to execute short, fast running code blocks as the Nginx event loop is blocked during code execution. Time consuming code sequences should therefore be avoided.
 
-Note that the following API functions are currently disabled within this context:
+This directive is implemented by injecting custom commands into the standard [[HttpRewriteModule]]'s command list. Because [[HttpRewriteModule]] does not support nonblocking I/O in its commands, Lua APIs requiring yielding the current Lua "light thread" cannot work in this directive.
+
+At least the following API functions are currently disabled within the context of <code>set_by_lua</code>:
 
 * Output API functions (e.g., [[#ngx.say|ngx.say]] and [[#ngx.send_headers|ngx.send_headers]])
 * Control API functions (e.g., [[#ngx.exit|ngx.exit]]) 
 * Subrequest API functions (e.g., [[#ngx.location.capture|ngx.location.capture]] and [[#ngx.location.capture_multi|ngx.location.capture_multi]])
 * Cosocket API functions (e.g., [[#ngx.socket.tcp|ngx.socket.tcp]] and [[#ngx.req.socket|ngx.req.socket]]).
+* Sleeping API function [[#ngx.sleep|ngx.sleep]].
 
 In addition, note that this directive can only write out a value to a single Nginx variable at
 a time. However, a workaround is possible using the [[#ngx.var.VARIABLE|ngx.var.VARIABLE]] interface.
@@ -424,7 +1099,7 @@ This directive requires the [https://github.com/simpl/ngx_devel_kit ngx_devel_ki
 
 '''context:''' ''server, server if, location, location if''
 
-'''phase:''' ''server-rewrite, rewrite''
+'''phase:''' ''rewrite''
 
 Equivalent to [[#set_by_lua|set_by_lua]], except that the file specified by <code><path-to-lua-script-file></code> contains the Lua code, or, as from the <code>v0.5.0rc32</code> release, the [[#Lua/LuaJIT bytecode support|Lua/LuaJIT bytecode]] to be executed. 
 
@@ -485,12 +1160,12 @@ The Lua code may make [[#Nginx API for Lua|API calls]] and is executed as a new 
 Note that this handler always runs ''after'' the standard [[HttpRewriteModule]]. So the following will work as expected:
 
 <geshi lang="nginx">
-   location /foo {
-       set $a 12; # create and initialize $a
-       set $b ""; # create and initialize $b
-       rewrite_by_lua 'ngx.var.b = tonumber(ngx.var.a) + 1';
-       echo "res = $b";
-   }
+    location /foo {
+        set $a 12; # create and initialize $a
+        set $b ""; # create and initialize $b
+        rewrite_by_lua 'ngx.var.b = tonumber(ngx.var.a) + 1';
+        echo "res = $b";
+    }
 </geshi>
 
 because <code>set $a 12</code> and <code>set $b ""</code> run ''before'' [[#rewrite_by_lua|rewrite_by_lua]].
@@ -799,11 +1474,11 @@ When the Lua code may change the length of the response body, then it is require
         # fastcgi_pass/proxy_pass/...
 
         header_filter_by_lua 'ngx.header.content_length = nil';
-        body_filter_by_lua 'ngx.arg[1] = {string.len(arg[1]), "\n"}'
+        body_filter_by_lua 'ngx.arg[1] = string.len(ngx.arg[1]) .. "\\n"';
     }
 </geshi>
 
-Note that the following API functions are currently disabled within this context:
+Note that the following API functions are currently disabled within this context due to the limitations in NGINX output filter's current implementation:
 
 * Output API functions (e.g., [[#ngx.say|ngx.say]] and [[#ngx.send_headers|ngx.send_headers]])
 * Control API functions (e.g., [[#ngx.exit|ngx.exit]] and [[#ngx.exec|ngx.exec]])
@@ -940,6 +1615,8 @@ This also applies to [[#access_by_lua|access_by_lua]] and [[#access_by_lua_file|
 
 Declares a shared memory zone, <code><name></code>, to serve as storage for the shm based Lua dictionary <code>ngx.shared.<name></code>.
 
+Shared memory zones are always shared by all the nginx worker processes in the current nginx server instance.
+
 The <code><size></code> argument accepts size units such as <code>k</code> and <code>m</code>:
 
 <geshi lang="nginx">
@@ -1035,7 +1712,7 @@ Default to 30 connections for every pool.
 
 When the connection pool exceeds the available size limit, the least recently used (idle) connection already in the pool will be closed to make room for the current connection.
 
-Note that the cosocket connection pool is per nginx worker process rather than per nginx server instance, so so size limit specified here also applies to every single nginx worker process.
+Note that the cosocket connection pool is per nginx worker process rather than per nginx server instance, so size limit specified here also applies to every single nginx worker process.
 
 This directive was first introduced in the <code>v0.5.0rc1</code> release.
 
@@ -1064,6 +1741,72 @@ This directive was first introduced in the <code>v0.5.0rc1</code> release.
 This directive can be used to toggle error logging when a failure occurs for the TCP or UDP cosockets. If you are already doing proper error handling and logging in your Lua code, then it is recommended to turn this directive off to prevent data flushing in your nginx error log files (which is usually rather expensive).
 
 This directive was first introduced in the <code>v0.5.13</code> release.
+
+== lua_ssl_ciphers ==
+
+'''syntax:''' ''lua_ssl_ciphers <ciphers>''
+
+'''default:''' ''lua_ssl_ciphers DEFAULT''
+
+'''context:''' ''http, server, location''
+
+Specifies the enabled ciphers for requests to a SSL/TLS server in the [[#tcpsock:sslhandshake|tcpsock:sslhandshake]] method. The ciphers are specified in the format understood by the OpenSSL library.
+
+The full list can be viewed using the “openssl ciphers” command.
+
+This directive was first introduced in the <code>v0.9.11</code> release.
+
+== lua_ssl_crl ==
+
+'''syntax:''' ''lua_ssl_crl <file>''
+
+'''default:''' ''no''
+
+'''context:''' ''http, server, location''
+
+Specifies a file with revoked certificates (CRL) in the PEM format used to verify the certificate of the SSL/TLS server in the [[#tcpsock:sslhandshake|tcpsock:sslhandshake]] method.
+
+This directive was first introduced in the <code>v0.9.11</code> release.
+
+== lua_ssl_protocols ==
+
+'''syntax:''' ''lua_ssl_protocols [SSLv2] [SSLv3] [TLSv1] [TLSv1.1] [TLSv1.2]''
+
+'''default:''' ''lua_ssl_protocols SSLv3 TLSv1 TLSv1.1 TLSv1.2''
+
+'''context:''' ''http, server, location''
+
+Enables the specified protocols for requests to a SSL/TLS server in the [[#tcpsock:sslhandshake|tcpsock:sslhandshake]] method.
+
+This directive was first introduced in the <code>v0.9.11</code> release.
+
+== lua_ssl_trusted_certificate ==
+
+'''syntax:''' ''lua_ssl_trusted_certificate <file>''
+
+'''default:''' ''no''
+
+'''context:''' ''http, server, location''
+
+Specifies a file path with trusted CA certificates in the PEM format used to verify the certificate of the SSL/TLS server in the [[#tcpsock:sslhandshake|tcpsock:sslhandshake]] method.
+
+This directive was first introduced in the <code>v0.9.11</code> release.
+
+See also [[#lua_ssl_verify_depth|lua_ssl_verify_depth]].
+
+== lua_ssl_verify_depth ==
+
+'''syntax:''' ''lua_ssl_verify_depth <number>''
+
+'''default:''' ''lua_ssl_verify_depth 1''
+
+'''context:''' ''http, server, location''
+
+Sets the verification depth in the server certificates chain.
+
+This directive was first introduced in the <code>v0.9.11</code> release.
+
+See also [[#lua_ssl_trusted_certificate|lua_ssl_trusted_certificate]].
 
 == lua_http10_buffering ==
 
@@ -1138,7 +1881,42 @@ This directive was first introduced in the <code>v0.7.4</code> release.
 
 See also [[#ngx.on_abort|ngx.on_abort]].
 
+== lua_max_pending_timers ==
+
+'''syntax:''' ''lua_max_pending_timers <count>''
+
+'''default:''' ''lua_max_pending_timers 1024''
+
+'''context:''' ''http''
+
+Controls the maximum number of pending timers allowed.
+
+Pending timers are those timers that have not expired yet.
+
+When exceeding this limit, the [[#ngx.timer.at|ngx.timer.at]] call will immediately return <code>nil</code> and the error string "too many pending timers".
+
+This directive was first introduced in the <code>v0.8.0</code> release.
+
+== lua_max_running_timers ==
+
+'''syntax:''' ''lua_max_running_timers <count>''
+
+'''default:''' ''lua_max_running_timers 256''
+
+'''context:''' ''http''
+
+Controls the maximum number of "running timers" allowed.
+
+Running timers are those timers whose user callback functions are still running.
+
+When exceeding this limit, Nginx will stop running the callbacks of newly expired timers and log an error message "N lua_max_running_timers are not enough" where "N" is the current value of this directive.
+
+This directive was first introduced in the <code>v0.8.0</code> release.
+
 = Nginx API for Lua =
+
+<!-- inline-toc -->
+
 == Introduction ==
 The various <code>*_by_lua</code> and <code>*_by_lua_file</code> configuration directives serve as gateways to the Lua API within the <code>nginx.conf</code> file. The Nginx Lua API described below can only be called within the user Lua code run in the context of these configuration directives.
 
@@ -1149,11 +1927,13 @@ The packages can be introduced into external Lua modules like this:
 <geshi lang="lua">
     local say = ngx.say
 
-    module(...)
+    local _M = {}
 
-    function foo(a) 
-        say(a) 
+    function _M.foo(a)
+        say(a)
     end
+
+    return _M
 </geshi>
 
 Use of the [http://www.lua.org/manual/5.1/manual.html#pdf-package.seeall package.seeall] flag is strongly discouraged due to its various bad side-effects.
@@ -1247,10 +2027,12 @@ Setting <code>ngx.var.Foo</code> to a <code>nil</code> value will unset the <cod
     --- use the val repeatedly later
 </geshi>
 
-to prevent (temporary) memory leaking within the current request's lifetime.
+to prevent (temporary) memory leaking within the current request's lifetime. Another way of caching the result is to use the [[#ngx.ctx|ngx.ctx]] table.
+
+This API requires a relatively expensive metamethod call and it is recommended to avoid using it on hot code paths.
 
 == Core constants ==
-'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua, *log_by_lua*''
+'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua, *log_by_lua*, ngx.timer.*''
 
 <geshi lang="lua">
   ngx.OK (0)
@@ -1271,7 +2053,7 @@ The <code>ngx.null</code> constant is a <code>NULL</code> light userdata usually
 The <code>ngx.DECLINED</code> constant was first introduced in the <code>v0.5.0rc19</code> release.
 
 == HTTP method constants ==
-'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua, log_by_lua*''
+'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua, log_by_lua*, ngx.timer.*''
 
 <geshi lang="text">
   ngx.HTTP_GET
@@ -1279,13 +2061,22 @@ The <code>ngx.DECLINED</code> constant was first introduced in the <code>v0.5.0r
   ngx.HTTP_PUT
   ngx.HTTP_POST
   ngx.HTTP_DELETE
-  ngx.HTTP_OPTIONS   (first introduced in the v0.5.0rc24 release)
+  ngx.HTTP_OPTIONS   (added in the v0.5.0rc24 release)
+  ngx.HTTP_MKCOL     (added in the v0.8.2 release)
+  ngx.HTTP_COPY      (added in the v0.8.2 release)
+  ngx.HTTP_MOVE      (added in the v0.8.2 release)
+  ngx.HTTP_PROPFIND  (added in the v0.8.2 release)
+  ngx.HTTP_PROPPATCH (added in the v0.8.2 release)
+  ngx.HTTP_LOCK      (added in the v0.8.2 release)
+  ngx.HTTP_UNLOCK    (added in the v0.8.2 release)
+  ngx.HTTP_PATCH     (added in the v0.8.2 release)
+  ngx.HTTP_TRACE     (added in the v0.8.2 release)
 </geshi>
 
 These constants are usually used in [[#ngx.location.capture|ngx.location.capture]] and [[#ngx.location.capture_multi|ngx.location.capture_multi]] method calls.
 
 == HTTP status constants ==
-'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua, log_by_lua*''
+'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua, log_by_lua*, ngx.timer.*''
 
 <geshi lang="nginx">
   value = ngx.HTTP_OK (200)
@@ -1308,7 +2099,7 @@ These constants are usually used in [[#ngx.location.capture|ngx.location.capture
 </geshi>
 
 == Nginx log level constants ==
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua, log_by_lua*''
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua, log_by_lua*, ngx.timer.*''
 
 <geshi lang="lua">
   ngx.STDERR
@@ -1327,7 +2118,7 @@ These constants are usually used by the [[#ngx.log|ngx.log]] method.
 == print ==
 '''syntax:''' ''print(...)''
 
-'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua, log_by_lua*''
+'''context:''' ''init_by_lua*, init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua, log_by_lua*, ngx.timer.*''
 
 Writes argument values into the nginx <code>error.log</code> file with the <code>ngx.NOTICE</code> log level.
 
@@ -1342,7 +2133,7 @@ Lua <code>nil</code> arguments are accepted and result in literal <code>"nil"</c
 There is a hard coded <code>2048</code> byte limitation on error message lengths in the Nginx core. This limit includes trailing newlines and leading time stamps. If the message size exceeds this limit, Nginx will truncate the message text accordingly. This limit can be manually modified by editing the <code>NGX_MAX_ERROR_STR</code> macro definition in the <code>src/core/ngx_log.h</code> file in the Nginx source tree.
 
 == ngx.ctx ==
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua, log_by_lua*''
+'''context:''' ''init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua, log_by_lua*, ngx.timer.*''
 
 This table can be used to store per-request Lua context data and has a life time identical to the current request (as with the Nginx variables). 
 
@@ -1438,6 +2229,10 @@ Overriding <code>ngx.ctx</code> with a new Lua table is also supported, for exam
     ngx.ctx = { foo = 32, bar = 54 }
 </geshi>
 
+When being used in the context of [[#init_worker_by_lua|init_worker_by_lua*]], this table just has the same lifetime of the current Lua handler.
+
+The <code>ngx.ctx</code> lookup requires relatively expensive metamethod calls and it is much slower than explicitly passing per-request data along by your own function arguments. So do not abuse this API for saving your own function arguments because it usually has quite some performance impact. And because of the metamethod magic, never "local" the <code>ngx.ctx</code> table outside your function scope.
+
 == ngx.location.capture ==
 '''syntax:''' ''res = ngx.location.capture(uri, options?)''
 
@@ -1452,13 +2247,17 @@ Also note that subrequests just mimic the HTTP interface but there is ''no'' ext
 
 Subrequests are completely different from HTTP 301/302 redirection (via [[#ngx.redirect|ngx.redirect]]) and internal redirection (via [[#ngx.exec|ngx.exec]]).
 
+You should always read the request body (by either calling [[#ngx.req.read_body|ngx.req.read_body]] or configuring [[#lua_need_request_body|lua_need_request_body]] on) before initiating a subrequest.
+
 Here is a basic example:
 
 <geshi lang="lua">
     res = ngx.location.capture(uri)
 </geshi>
 
-Returns a Lua table with three slots (<code>res.status</code>, <code>res.header</code>, and <code>res.body</code>).
+Returns a Lua table with three slots (<code>res.status</code>, <code>res.header</code>, <code>res.body</code>, and <code>res.truncated</code>).
+
+<code>res.status</code> holds the response status code for the subrequest response.
 
 <code>res.header</code> holds all the response headers of the
 subrequest and it is a normal Lua table. For multi-value response headers,
@@ -1474,6 +2273,8 @@ lines:
 
 Then <code>res.header["Set-Cookie"]</code> will be evaluated to the table value
 <code>{"a=3", "foo=bar", "baz=blah"}</code>.
+
+<code>res.body</code> holds the subrequest's response body data, which might be truncated. You always need to check the <code>res.truncated</code> boolean flag to see if <code>res.body</code> contains truncated data. The data truncation here can only be caused by those unrecoverable errors in your subrequests like the cases that the remote end aborts the connection prematurely in the middle of the response body data stream or a read timeout happens when your subrequest is receiving the response body data from the remote.
 
 URI query strings can be concatenated to URI itself, for instance,
 
@@ -1502,6 +2303,8 @@ argument, which supports the options:
 : specify whether to copy over all the Nginx variable values of the current request to the subrequest in question. modifications of the nginx variables in the subrequest will not affect the current (parent) request. This option was first introduced in the <code>v0.3.1rc31</code> release.
 * <code>share_all_vars</code>
 : specify whether to share all the Nginx variables of the subrequest with the current (parent) request. modifications of the Nginx variables in the subrequest will affect the current (parent) request.
+* <code>always_forward_body</code>
+: when set to true, the current (parent) request's request body will always be forwarded to the subrequest being created if the <code>body</code> option is not specified. The request body read by either [[#ngx.req.read_body|ngx.req.read_body()]] or [[#lua_need_request_body|lua_need_request_body on]] will be directly forwarded to the subrequest without copying the whole request body data when creating the subrequest (no matter the request body data is buffered in memory buffers or temporary files). By default, this option is <code>false</code> and when the <code>body</code> option is not specified, the request body of the current (parent) request is only forwarded when the subrequest takes the <code>PUT</code> or <code>POST</code> request method.
 
 Issuing a POST subrequest, for example, can be done as follows
 
@@ -1692,7 +2495,7 @@ subrequests, an "Accept-Encoding: gzip" header in the main request may result
 in gzipped responses that cannot be handled properly in Lua code. Original request headers should be ignored by setting 
 [[HttpProxyModule#proxy_pass_request_headers|proxy_pass_request_headers]] to <code>off</code> in subrequest locations.
 
-When the <code>body</code> option is not specified, the <code>POST</code> and <code>PUT</code> subrequests will inherit the request bodies of the parent request (if any).
+When the <code>body</code> option is not specified and the <code>always_forward_body</code> option is false (the default value), the <code>POST</code> and <code>PUT</code> subrequests will inherit the request bodies of the parent request (if any).
 
 There is a hard-coded upper limit on the number of concurrent subrequests possible for every main request. In older versions of Nginx, the limit was <code>50</code> concurrent subrequests and in more recent versions, Nginx <code>1.1.x</code> onwards, this was increased to <code>200</code> concurrent subrequests. When this limit is exceeded, the following error message is added to the <code>error.log</code> file:
 
@@ -1881,6 +2684,24 @@ to be returned when reading <code>ngx.header.Foo</code>.
 Note that <code>ngx.header</code> is not a normal Lua table and as such, it is not possible to iterate through it using the Lua <code>ipairs</code> function.
 
 For reading ''request'' headers, use the [[#ngx.req.get_headers|ngx.req.get_headers]] function instead.
+
+== ngx.resp.get_headers ==
+'''syntax:''' ''headers = ngx.resp.get_headers(max_headers?, raw?)''
+
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua, log_by_lua*''
+
+Returns a Lua table holding all the current response headers for the current request.
+
+<geshi lang="lua">
+local h = ngx.resp.get_headers()
+for k, v in pairs(h) do
+    ...
+end
+</geshi>
+
+This function has the same signature as [[#ngx.req.get_headers|ngx.req.get_headers]] except getting response headers instead of request headers.
+
+This API was first introduced in the <code>v0.9.5</code> release.
 
 == ngx.req.start_time ==
 '''syntax:''' ''secs = ngx.req.start_time()''
@@ -2189,7 +3010,7 @@ Returns a Lua table holding all the current request POST query arguments (of the
     location = /test {
         content_by_lua '
             ngx.req.read_body()
-            local args = ngx.req.get_post_args()
+            local args, err = ngx.req.get_post_args()
             if not args then
                 ngx.say("failed to get post args: ", err)
                 return
@@ -2380,7 +3201,7 @@ is equivalent to
 
 '''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*''
 
-Clear the current request's request header named <code>header_name</code>. None of the current request's subrequests will be affected.
+Clears the current request's request header named <code>header_name</code>. None of the current request's existing subrequests will be affected but subsequently initiated subrequests will inherit the change by default.
 
 == ngx.req.read_body ==
 '''syntax:''' ''ngx.req.read_body()''
@@ -2432,6 +3253,7 @@ See also [[#ngx.req.read_body|ngx.req.read_body]].
 Retrieves in-memory request body data. It returns a Lua string rather than a Lua table holding all the parsed query arguments. Use the [[#ngx.req.get_post_args|ngx.req.get_post_args]] function instead if a Lua table is required.
 
 This function returns <code>nil</code> if
+
 # the request body has not been read,
 # the request body has been read into disk temporary files,
 # or the request body has zero size.
@@ -2442,7 +3264,7 @@ If the request body has been read into disk files, try calling the [[#ngx.req.ge
 
 To force in-memory request bodies, try setting [[HttpCoreModule#client_body_buffer_size|client_body_buffer_size]] to the same size value in [[HttpCoreModule#client_max_body_size|client_max_body_size]].
 
-Note that calling this function instead of using <code>ngx.var.request_body</code> or <code>ngx.var.echo_request-body</code> is more efficient because it can save one dynamic memory allocation and one data copy.
+Note that calling this function instead of using <code>ngx.var.request_body</code> or <code>ngx.var.echo_request_body</code> is more efficient because it can save one dynamic memory allocation and one data copy.
 
 This function was first introduced in the <code>v0.3.1rc17</code> release.
 
@@ -2557,6 +3379,8 @@ See also [[#ngx.req.init_body|ngx.req.init_body]].
 == ngx.req.socket ==
 '''syntax:''' ''tcpsock, err = ngx.req.socket()''
 
+'''syntax:''' ''tcpsock, err = ngx.req.socket(raw)''
+
 '''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
 
 Returns a read-only cosocket object that wraps the downstream connection. Only [[#tcpsock:receive|receive]] and [[#tcpsock:receiveuntil|receiveuntil]] methods are supported on this object.
@@ -2566,6 +3390,13 @@ In case of error, <code>nil</code> will be returned as well as a string describi
 The socket object returned by this method is usually used to read the current request's body in a streaming fashion. Do not turn on the [[#lua_need_request_body|lua_need_request_body]] directive, and do not mix this call with [[#ngx.req.read_body|ngx.req.read_body]] and [[#ngx.req.discard_body|ngx.req.discard_body]].
 
 If any request body data has been pre-read into the Nginx core request header buffer, the resulting cosocket object will take care of this to avoid potential data loss resulting from such pre-reading.
+Chunked request bodies are not yet supported in this API.
+
+Since the <code>v0.9.0</code> release, this function accepts an optional boolean <code>raw</code> argument. When this argument is <code>true</code>, this function returns a full-duplex cosocket object wrapping around the raw downstream connection socket, upon which you can call the [[#tcpsock:receive|receive]], [[#tcpsock:receiveuntil|receiveuntil]], and [[#tcpsock:send|send]] methods.
+
+When the <code>raw</code> argument is <code>true</code>, it is required that no pending data from any previous [[#ngx.say|ngx.say]], [[#ngx.print|ngx.print]], or [[#ngx.send_headers|ngx.send_headers]] calls exists. So if you have these downstream output calls previously, you should call [[#ngx.flush|ngx.flush(true)]] before calling <code>ngx.req.socket(true)</code> to ensure that there is no pending output data. If the request body has not been read yet, then this "raw socket" can also be used to read the request body.
+
+You can use the "raw request socket" returned by <code>ngx.req.socket(true)</code> to implement fancy protocols like [http://en.wikipedia.org/wiki/WebSocket WebSocket], or just emit your own raw HTTP response header or body data. You can refer to the [https://github.com/openresty/lua-resty-websocket lua-resty-websocket library] for a real world example.
 
 This function was first introduced in the <code>v0.5.0rc1</code> release.
 
@@ -2692,11 +3523,13 @@ URI arguments can be specified as well, for example:
 This method call terminates the current request's processing and never returns. It is recommended to combine the <code>return</code> statement with this call, i.e., <code>return ngx.redirect(...)</code>, so as to be more explicit.
 
 == ngx.send_headers ==
-'''syntax:''' ''ngx.send_headers()''
+'''syntax:''' ''ok, err = ngx.send_headers()''
 
 '''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
 
 Explicitly send out the response headers.
+
+Since <code>v0.8.3</code> this function returns <code>1</code> on success, or returns <code>nil</code> and a string describing the error otherwise.
 
 Note that there is normally no need to manually send out response headers as ngx_lua will automatically send headers out
 before content is output with [[#ngx.say|ngx.say]] or [[#ngx.print|ngx.print]] or when [[#content_by_lua|content_by_lua]] exits normally.
@@ -2711,11 +3544,13 @@ Returns <code>true</code> if the response headers have been sent (by ngx_lua), a
 This API was first introduced in ngx_lua v0.3.1rc6.
 
 == ngx.print ==
-'''syntax:''' ''ngx.print(...)''
+'''syntax:''' ''ok, err = ngx.print(...)''
 
 '''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
 
 Emits arguments concatenated to the HTTP client (as response body). If response headers have not been sent, this function will send headers out first and then output body data.
+
+Since <code>v0.8.3</code> this function returns <code>1</code> on success, or returns <code>nil</code> and a string describing the error otherwise.
 
 Lua <code>nil</code> values will output <code>"nil"</code> strings and Lua boolean values will output <code>"true"</code> and <code>"false"</code> literal strings respectively.
 
@@ -2742,8 +3577,10 @@ The <code>ngx.null</code> constant will yield the <code>"null"</code> string out
 
 This is an asynchronous call and will return immediately without waiting for all the data to be written into the system send buffer. To run in synchronous mode, call <code>ngx.flush(true)</code> after calling <code>ngx.print</code>. This can be particularly useful for streaming output. See [[#ngx.flush|ngx.flush]] for more details.
 
+Please note that both <code>ngx.print</code> and [[#ngx.say|ngx.say]] will always invoke the whole Nginx output body filter chain, which is an expensive operation. So be careful when calling either of these two in a tight loop; buffer the data yourself in Lua and save the calls.
+
 == ngx.say ==
-'''syntax:''' ''ngx.say(...)''
+'''syntax:''' ''ok, err = ngx.say(...)''
 
 '''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
 
@@ -2752,7 +3589,7 @@ Just as [[#ngx.print|ngx.print]] but also emit a trailing newline.
 == ngx.log ==
 '''syntax:''' ''ngx.log(log_level, ...)''
 
-'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_by_lua*, init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Log arguments concatenated to error.log with the given logging level.
 
@@ -2763,7 +3600,7 @@ The <code>log_level</code> argument can take constants like <code>ngx.ERR</code>
 There is a hard coded <code>2048</code> byte limitation on error message lengths in the Nginx core. This limit includes trailing newlines and leading time stamps. If the message size exceeds this limit, Nginx will truncate the message text accordingly. This limit can be manually modified by editing the <code>NGX_MAX_ERROR_STR</code> macro definition in the <code>src/core/ngx_log.h</code> file in the Nginx source tree.
 
 == ngx.flush ==
-'''syntax:''' ''ngx.flush(wait?)''
+'''syntax:''' ''ok, err = ngx.flush(wait?)''
 
 '''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
 
@@ -2775,12 +3612,14 @@ In synchronous mode, the function will not return until all output data has been
 
 When <code>ngx.flush(true)</code> is called immediately after [[#ngx.print|ngx.print]] or [[#ngx.say|ngx.say]], it causes the latter functions to run in synchronous mode. This can be particularly useful for streaming output.
 
-Note that <code>ngx.flush</code> is non functional when in the HTTP 1.0 output buffering mode. See [[#HTTP 1.0 support|HTTP 1.0 support]].
+Note that <code>ngx.flush</code> is not functional when in the HTTP 1.0 output buffering mode. See [[#HTTP 1.0 support|HTTP 1.0 support]].
+
+Since <code>v0.8.3</code> this function returns <code>1</code> on success, or returns <code>nil</code> and a string describing the error otherwise.
 
 == ngx.exit ==
 '''syntax:''' ''ngx.exit(status)''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*''
 
 When <code>status >= 200</code> (i.e., <code>ngx.HTTP_OK</code> and above), it will interrupt the execution of the current request and return status code to nginx.
 
@@ -2820,10 +3659,12 @@ Number literals can be used directly as the argument, for instance,
 
 Note that while this method accepts all [[#HTTP status constants|HTTP status constants]] as input, it only accepts <code>NGX_OK</code> and <code>NGX_ERROR</code> of the [[#core constants|core constants]].
 
-It is recommended, though not necessary, to combine the <code>return</code> statement with this call, i.e., <code>return ngx.exit(...)</code>, to give a visual hint to others reading the code.
+It is recommended, though not necessary (for contexts other than [[#header_filter_by_lua|header_filter_by_lua]]), to combine the <code>return</code> statement with this call, i.e., <code>return ngx.exit(...)</code>, to give a visual hint to others reading the code.
+
+When being used in the context of [[#header_filter_by_lua|header_filter_by_lua]], <code>ngx.exit()</code> is an asynchronous operation and will return immediately. This behavior might change in the future. So always use <code>return</code> at the same time, as suggested above.
 
 == ngx.eof ==
-'''syntax:''' ''ngx.eof()''
+'''syntax:''' ''ok, err = ngx.eof()''
 
 '''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
 
@@ -2836,7 +3677,7 @@ When you disable the HTTP 1.1 keep-alive feature for your downstream connections
         keepalive_timeout 0;
         content_by_lua '
             ngx.say("got the task!")
-            ngx.eof()  -- descent HTTP client will close the connection at this point
+            ngx.eof()  -- a descent HTTP client will close the connection at this point
             -- access MySQL, PostgreSQL, Redis, Memcached, and etc here...
         ';
     }
@@ -2848,28 +3689,34 @@ But if you create subrequests to access other locations configured by Nginx upst
     proxy_ignore_client_abort on;
 </geshi>
 
+A better way to do background jobs is to use the [[#ngx.timer.at|ngx.timer.at]] API.
+
+Since <code>v0.8.3</code> this function returns <code>1</code> on success, or returns <code>nil</code> and a string describing the error otherwise.
+
 == ngx.sleep ==
 '''syntax:''' ''ngx.sleep(seconds)''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 Sleeps for the specified seconds without blocking. One can specify time resolution up to 0.001 seconds (i.e., one milliseconds).
 
 Behind the scene, this method makes use of the Nginx timers.
+
+Since the <code>0.7.20</code> release, The <code>0</code> time argument can also be specified.
 
 This method was introduced in the <code>0.5.0rc30</code> release.
 
 == ngx.escape_uri ==
 '''syntax:''' ''newstr = ngx.escape_uri(str)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_by_lua*, init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Escape <code>str</code> as a URI component.
 
 == ngx.unescape_uri ==
 '''syntax:''' ''newstr = ngx.unescape_uri(str)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_by_lua*, init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Unescape <code>str</code> as an escaped URI component.
 
@@ -2888,7 +3735,7 @@ gives the output
 == ngx.encode_args ==
 '''syntax:''' ''str = ngx.encode_args(table)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Encode the Lua table to a query args string according to the URI encoded rules.
 
@@ -2939,7 +3786,7 @@ This method was first introduced in the <code>v0.3.1rc27</code> release.
 == ngx.decode_args ==
 '''syntax:''' ''table = ngx.decode_args(str, max_args?)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Decodes a URI encoded query-string into a Lua table. This is the inverse function of [[#ngx.encode_args|ngx.encode_args]].
 
@@ -2958,21 +3805,21 @@ This method was introduced in the <code>v0.5.0rc29</code>.
 == ngx.encode_base64 ==
 '''syntax:''' ''newstr = ngx.encode_base64(str)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Encode <code>str</code> to a base64 digest.
 
 == ngx.decode_base64 ==
 '''syntax:''' ''newstr = ngx.decode_base64(str)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Decodes the <code>str</code> argument as a base64 digest to the raw form. Returns <code>nil</code> if <code>str</code> is not well formed.
 
 == ngx.crc32_short ==
 '''syntax:''' ''intval = ngx.crc32_short(str)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Calculates the CRC-32 (Cyclic Redundancy Code) digest for the <code>str</code> argument.
 
@@ -2985,7 +3832,7 @@ This API was first introduced in the <code>v0.3.1rc8</code> release.
 == ngx.crc32_long ==
 '''syntax:''' ''intval = ngx.crc32_long(str)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Calculates the CRC-32 (Cyclic Redundancy Code) digest for the <code>str</code> argument.
 
@@ -2998,7 +3845,7 @@ This API was first introduced in the <code>v0.3.1rc8</code> release.
 == ngx.hmac_sha1 ==
 '''syntax:''' ''digest = ngx.hmac_sha1(secret_key, str)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Computes the [http://en.wikipedia.org/wiki/HMAC HMAC-SHA1] digest of the argument <code>str</code> and turns the result using the secret key <code><secret_key></code>.
 
@@ -3026,7 +3873,7 @@ This function was first introduced in the <code>v0.3.1rc29</code> release.
 == ngx.md5 ==
 '''syntax:''' ''digest = ngx.md5(str)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Returns the hexadecimal representation of the MD5 digest of the <code>str</code> argument.
 
@@ -3049,7 +3896,7 @@ See [[#ngx.md5_bin|ngx.md5_bin]] if the raw binary MD5 digest is required.
 == ngx.md5_bin ==
 '''syntax:''' ''digest = ngx.md5_bin(str)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Returns the binary form of the MD5 digest of the <code>str</code> argument.
 
@@ -3058,7 +3905,7 @@ See [[#ngx.md5|ngx.md5]] if the hexadecimal form of the MD5 digest is required.
 == ngx.sha1_bin ==
 '''syntax:''' ''digest = ngx.sha1_bin(str)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Returns the binary form of the SHA-1 digest of the <code>str</code> argument.
 
@@ -3069,14 +3916,14 @@ This function was first introduced in the <code>v0.5.0rc6</code>.
 == ngx.quote_sql_str ==
 '''syntax:''' ''quoted_value = ngx.quote_sql_str(raw_value)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Returns a quoted SQL string literal according to the MySQL quoting rules.
 
 == ngx.today ==
 '''syntax:''' ''str = ngx.today()''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Returns current date (in the format <code>yyyy-mm-dd</code>) from the nginx cached time (no syscall involved unlike Lua's date library).
 
@@ -3085,7 +3932,7 @@ This is the local time.
 == ngx.time ==
 '''syntax:''' ''secs = ngx.time()''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Returns the elapsed seconds from the epoch for the current time stamp from the nginx cached time (no syscall involved unlike Lua's date library).
 
@@ -3094,7 +3941,7 @@ Updates of the Nginx time cache an be forced by calling [[#ngx.update_time|ngx.u
 == ngx.now ==
 '''syntax:''' ''secs = ngx.now()''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Returns a floating-point number for the elapsed time in seconds (including milliseconds as the decimal part) from the epoch for the current time stamp from the nginx cached time (no syscall involved unlike Lua's date library).
 
@@ -3105,7 +3952,7 @@ This API was first introduced in <code>v0.3.1rc32</code>.
 == ngx.update_time ==
 '''syntax:''' ''ngx.update_time()''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Forcibly updates the Nginx current time cache. This call involves a syscall and thus has some overhead, so do not abuse it.
 
@@ -3114,7 +3961,7 @@ This API was first introduced in <code>v0.3.1rc32</code>.
 == ngx.localtime ==
 '''syntax:''' ''str = ngx.localtime()''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Returns the current time stamp (in the format <code>yyyy-mm-dd hh:mm:ss</code>) of the nginx cached time (no syscall involved unlike Lua's [http://www.lua.org/manual/5.1/manual.html#pdf-os.date os.date] function).
 
@@ -3123,7 +3970,7 @@ This is the local time.
 == ngx.utctime ==
 '''syntax:''' ''str = ngx.utctime()''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Returns the current time stamp (in the format <code>yyyy-mm-dd hh:mm:ss</code>) of the nginx cached time (no syscall involved unlike Lua's [http://www.lua.org/manual/5.1/manual.html#pdf-os.date os.date] function).
 
@@ -3132,9 +3979,9 @@ This is the UTC time.
 == ngx.cookie_time ==
 '''syntax:''' ''str = ngx.cookie_time(sec)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
-Returns a formated string can be used as the cookie expiration time. The parameter <code>sec</code> is the time stamp in seconds (like those returned from [[#ngx.time|ngx.time]]).
+Returns a formatted string can be used as the cookie expiration time. The parameter <code>sec</code> is the time stamp in seconds (like those returned from [[#ngx.time|ngx.time]]).
 
 <geshi lang="nginx">
     ngx.say(ngx.cookie_time(1290079655))
@@ -3144,7 +3991,7 @@ Returns a formated string can be used as the cookie expiration time. The paramet
 == ngx.http_time ==
 '''syntax:''' ''str = ngx.http_time(sec)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Returns a formated string can be used as the http header time (for example, being used in <code>Last-Modified</code> header). The parameter <code>sec</code> is the time stamp in seconds (like those returned from [[#ngx.time|ngx.time]]).
 
@@ -3156,7 +4003,7 @@ Returns a formated string can be used as the http header time (for example, bein
 == ngx.parse_http_time ==
 '''syntax:''' ''sec = ngx.parse_http_time(str)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Parse the http time string (as returned by [[#ngx.http_time|ngx.http_time]]) into seconds. Returns the seconds or <code>nil</code> if the input string is in bad forms.
 
@@ -3175,9 +4022,9 @@ Parse the http time string (as returned by [[#ngx.http_time|ngx.http_time]]) int
 Returns <code>true</code> if the current request is an nginx subrequest, or <code>false</code> otherwise.
 
 == ngx.re.match ==
-'''syntax:''' ''captures, err = ngx.re.match(subject, regex, options?, ctx?)''
+'''syntax:''' ''captures, err = ngx.re.match(subject, regex, options?, ctx?, res_table?)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Matches the <code>subject</code> string using the Perl compatible regular expression <code>regex</code> with the optional <code>options</code>.
 
@@ -3268,6 +4115,9 @@ Specify <code>options</code> to control how the match operation will be performe
     u             UTF-8 mode. this requires PCRE to be built with
                   the --enable-utf8 option or else a Lua exception will be thrown.
 
+    U             similar to "u" but disables PCRE's UTF-8 validity check on
+                  the subject string. first introduced in ngx_lua v0.8.1.
+
     x             extended mode (similar to Perl's /x modifier)
 </geshi>
 
@@ -3286,20 +4136,20 @@ These options can be combined:
 
 The <code>o</code> option is useful for performance tuning, because the regex pattern in question will only be compiled once, cached in the worker-process level, and shared among all requests in the current Nginx worker process. The upper limit of the regex cache can be tuned via the [[#lua_regex_cache_max_entries|lua_regex_cache_max_entries]] directive.
 
-The optional fourth argument, <code>ctx</code>, can be a Lua table holding an optional <code>pos</code> field. When the <code>pos</code> field in the <code>ctx</code> table argument is specified, <code>ngx.re.match</code> will start matching from that offset. Regardless of the presence of the <code>pos</code> field in the <code>ctx</code> table, <code>ngx.re.match</code> will always set this <code>pos</code> field to the position ''after'' the substring matched by the whole pattern in case of a successful match. When match fails, the <code>ctx</code> table will be left intact.
+The optional fourth argument, <code>ctx</code>, can be a Lua table holding an optional <code>pos</code> field. When the <code>pos</code> field in the <code>ctx</code> table argument is specified, <code>ngx.re.match</code> will start matching from that offset (starting from 1). Regardless of the presence of the <code>pos</code> field in the <code>ctx</code> table, <code>ngx.re.match</code> will always set this <code>pos</code> field to the position ''after'' the substring matched by the whole pattern in case of a successful match. When match fails, the <code>ctx</code> table will be left intact.
 
 <geshi lang="lua">
     local ctx = {}
     local m, err = ngx.re.match("1234, hello", "[0-9]+", "", ctx)
          -- m[0] = "1234"
-         -- ctx.pos == 4
+         -- ctx.pos == 5
 </geshi>
 
 <geshi lang="lua">
     local ctx = { pos = 2 }
     local m, err = ngx.re.match("1234, hello", "[0-9]+", "", ctx)
          -- m[0] = "34"
-         -- ctx.pos == 4
+         -- ctx.pos == 5
 </geshi>
 
 The <code>ctx</code> table argument combined with the <code>a</code> regex modifier can be used to construct a lexer atop <code>ngx.re.match</code>.
@@ -3314,12 +4164,63 @@ To confirm that PCRE JIT is enabled, activate the Nginx debug log by adding the 
     pcre JIT compiling result: 1
 </geshi>
 
+Starting from the <code>0.9.4</code> release, this function also accepts a 5th argument, <code>res_table</code>, for letting the caller supply the Lua table used to hold all the capturing results. Starting from <code>0.9.6</code>, it is the caller's responsibility to ensure this table is empty. This is very useful for recycling Lua tables and saving GC and table allocation overhead.
+
 This feature was introduced in the <code>v0.2.1rc11</code> release.
+
+== ngx.re.find ==
+'''syntax:''' ''from, to, err = ngx.re.find(subject, regex, options?, ctx?, nth?)''
+
+'''context:''' ''init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
+
+Similar to [[#ngx.re.match|ngx.re.match]] but only returns the begining index (<code>from</code>) and end index (<code>to</code>) of the matched substring. The returned indexes are 1-based and can be fed directly into the [http://www.lua.org/manual/5.1/manual.html#pdf-string.sub string.sub] API function to obtain the matched substring.
+
+In case of errors (like bad regexes or any PCRE runtime errors), this API function returns two <code>nil</code> values followed by a string describing the error.
+
+If no match is found, this function just returns a <code>nil</code> value.
+
+Below is an example:
+
+<geshi lang="lua">
+    local s = "hello, 1234"
+    local from, to, err = ngx.re.find(s, "([0-9]+)", "jo")
+    if from then
+        ngx.say("from: ", from)
+        ngx.say("to: ", to)
+        ngx.say("matched: ", string.sub(s, from, to))
+    else
+        if err then
+            ngx.say("error: ", err)
+            return
+        end
+        ngx.say("not matched!")
+    end
+</geshi>
+
+This example produces the output
+
+    from: 8
+    to: 11
+    matched: 1234
+
+Because this API function does not create new Lua strings nor new Lua tables, it is much faster than [[#ngx.re.match|ngx.re.match]]. It should be used wherever possible.
+
+Since the <code>0.9.3</code> release, an optional 5th argument, <code>nth</code>, is supported to specify which (submatch) capture's indexes to return. When <code>nth</code> is 0 (which is the default), the indexes for the whole matched substring is returned; when <code>nth</code> is 1, then the 1st submatch capture's indexes are returned; when <code>nth</code> is 2, then the 2nd submatch capture is returned, and so on. When the specified submatch does not have a match, then two <code>nil</code> values will be returned. Below is an example for this:
+
+<geshi lang="lua">
+    local str = "hello, 1234"
+    local from, to = ngx.re.find(str, "([0-9])([0-9]+)", "jo", nil, 2)
+    if from then
+        ngx.say("matched 2nd submatch: ", string.sub(str, from, to))  -- yields "234"
+    end
+</geshi>
+
+This API function was first introduced in the <code>v0.9.2</code> release.
 
 == ngx.re.gmatch ==
 '''syntax:''' ''iterator, err = ngx.re.gmatch(subject, regex, options?)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Similar to [[#ngx.re.match|ngx.re.match]], but returns a Lua iterator instead, so as to let the user programmer iterate all the matches over the <code><subject></code> string argument with the PCRE <code>regex</code>.
 
@@ -3392,7 +4293,7 @@ This feature was first introduced in the <code>v0.2.1rc12</code> release.
 == ngx.re.sub ==
 '''syntax:''' ''newstr, n, err = ngx.re.sub(subject, regex, replace, options?)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Substitutes the first match of the Perl compatible regular expression <code>regex</code> on the <code>subject</code> argument string with the string or function argument <code>replace</code>. The optional <code>options</code> argument has exactly the same meaning as in [[#ngx.re.match|ngx.re.match]].
 
@@ -3451,7 +4352,7 @@ This feature was first introduced in the <code>v0.2.1rc13</code> release.
 == ngx.re.gsub ==
 '''syntax:''' ''newstr, n, err = ngx.re.gsub(subject, regex, replace, options?)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Just like [[#ngx.re.sub|ngx.re.sub]], but does global substitution.
 
@@ -3484,22 +4385,28 @@ This feature was first introduced in the <code>v0.2.1rc15</code> release.
 == ngx.shared.DICT ==
 '''syntax:''' ''dict = ngx.shared.DICT''
 
-'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''syntax:''' ''dict = ngx.shared[name_var]''
+
+'''context:''' ''init_by_lua*, init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Fetching the shm-based Lua dictionary object for the shared memory zone named <code>DICT</code> defined by the [[#lua_shared_dict|lua_shared_dict]] directive.
+
+Shared memory zones are always shared by all the nginx worker processes in the current nginx server instance.
 
 The resulting object <code>dict</code> has the following methods:
 
 * [[#ngx.shared.DICT.get|get]]
+* [[#ngx.shared.DICT.get_stale|get_stale]]
 * [[#ngx.shared.DICT.set|set]]
 * [[#ngx.shared.DICT.safe_set|safe_set]]
 * [[#ngx.shared.DICT.add|add]]
 * [[#ngx.shared.DICT.safe_add|safe_add]]
 * [[#ngx.shared.DICT.replace|replace]]
-* [[#ngx.shared.DICT.incr|incr]]
 * [[#ngx.shared.DICT.delete|delete]]
+* [[#ngx.shared.DICT.incr|incr]]
 * [[#ngx.shared.DICT.flush_all|flush_all]]
 * [[#ngx.shared.DICT.flush_expired|flush_expired]]
+* [[#ngx.shared.DICT.get_keys|get_keys]]
 
 Here is an example:
 
@@ -3548,9 +4455,11 @@ This feature was first introduced in the <code>v0.3.1rc22</code> release.
 == ngx.shared.DICT.get ==
 '''syntax:''' ''value, flags = ngx.shared.DICT:get(key)''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Retrieving the value in the dictionary [[#ngx.shared.DICT|ngx.shared.DICT]] for the key <code>key</code>. If the key does not exist or has been expired, then <code>nil</code> will be returned.
+
+In case of errors, <code>nil</code> and a string describing the error will be returned.
 
 The value returned will have the original data type when they were inserted into the dictionary, for example, Lua booleans, numbers, or strings.
 
@@ -3576,10 +4485,25 @@ This feature was first introduced in the <code>v0.3.1rc22</code> release.
 
 See also [[#ngx.shared.DICT|ngx.shared.DICT]].
 
+== ngx.shared.DICT.get_stale ==
+'''syntax:''' ''value, flags, stale = ngx.shared.DICT:get_stale(key)''
+
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
+
+Similar to the [[#ngx.shared.DICT.get|get]] method but returns the value even if the key has already expired.
+
+Returns a 3rd value, <code>stale</code>, indicating whether the key has expired or not.
+
+Note that the value of an expired key is not guaranteed to be available so one should never rely on the availability of expired items.
+
+This method was first introduced in the <code>0.8.6</code> release.
+
+See also [[#ngx.shared.DICT|ngx.shared.DICT]].
+
 == ngx.shared.DICT.set ==
 '''syntax:''' ''success, err, forcible = ngx.shared.DICT:set(key, value, exptime?, flags?)''
 
-'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Unconditionally sets a key-value pair into the shm-based dictionary [[#ngx.shared.DICT|ngx.shared.DICT]]. Returns three values:
 
@@ -3622,7 +4546,7 @@ See also [[#ngx.shared.DICT|ngx.shared.DICT]].
 == ngx.shared.DICT.safe_set ==
 '''syntax:''' ''ok, err = ngx.shared.DICT:safe_set(key, value, exptime?, flags?)''
 
-'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Similar to the [[#ngx.shared.DICT.set|set]] method, but never overrides the (least recently used) unexpired items in the store when running out of storage in the shared memory zone. In this case, it will immediately return <code>nil</code> and the string "no memory".
 
@@ -3633,7 +4557,7 @@ See also [[#ngx.shared.DICT|ngx.shared.DICT]].
 == ngx.shared.DICT.add ==
 '''syntax:''' ''success, err, forcible = ngx.shared.DICT:add(key, value, exptime?, flags?)''
 
-'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Just like the [[#ngx.shared.DICT.set|set]] method, but only stores the key-value pair into the dictionary [[#ngx.shared.DICT|ngx.shared.DICT]] if the key does ''not'' exist.
 
@@ -3646,7 +4570,7 @@ See also [[#ngx.shared.DICT|ngx.shared.DICT]].
 == ngx.shared.DICT.safe_add ==
 '''syntax:''' ''ok, err = ngx.shared.DICT:safe_add(key, value, exptime?, flags?)''
 
-'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Similar to the [[#ngx.shared.DICT.add|add]] method, but never overrides the (least recently used) unexpired items in the store when running out of storage in the shared memory zone. In this case, it will immediately return <code>nil</code> and the string "no memory".
 
@@ -3657,7 +4581,7 @@ See also [[#ngx.shared.DICT|ngx.shared.DICT]].
 == ngx.shared.DICT.replace ==
 '''syntax:''' ''success, err, forcible = ngx.shared.DICT:replace(key, value, exptime?, flags?)''
 
-'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Just like the [[#ngx.shared.DICT.set|set]] method, but only stores the key-value pair into the dictionary [[#ngx.shared.DICT|ngx.shared.DICT]] if the key ''does'' exist.
 
@@ -3670,7 +4594,7 @@ See also [[#ngx.shared.DICT|ngx.shared.DICT]].
 == ngx.shared.DICT.delete ==
 '''syntax:''' ''ngx.shared.DICT:delete(key)''
 
-'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Unconditionally removes the key-value pair from the shm-based dictionary [[#ngx.shared.DICT|ngx.shared.DICT]].
 
@@ -3683,7 +4607,7 @@ See also [[#ngx.shared.DICT|ngx.shared.DICT]].
 == ngx.shared.DICT.incr ==
 '''syntax:''' ''newval, err = ngx.shared.DICT:incr(key, value)''
 
-'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Increments the (numerical) value for <code>key</code> in the shm-based dictionary [[#ngx.shared.DICT|ngx.shared.DICT]] by the step value <code>value</code>. Returns the new resulting number if the operation is successfully completed or <code>nil</code> and an error message otherwise.
 
@@ -3700,9 +4624,9 @@ See also [[#ngx.shared.DICT|ngx.shared.DICT]].
 == ngx.shared.DICT.flush_all ==
 '''syntax:''' ''ngx.shared.DICT:flush_all()''
 
-'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
-Flushes out all the items in the dictionary.
+Flushes out all the items in the dictionary. This method does not actuall free up all the memory blocks in the dictionary but just marks all the existing items as expired.
 
 This feature was first introduced in the <code>v0.5.0rc17</code> release.
 
@@ -3711,9 +4635,11 @@ See also [[#ngx.shared.DICT.flush_expired|ngx.shared.DICT.flush_expired]] and [[
 == ngx.shared.DICT.flush_expired ==
 '''syntax:''' ''flushed = ngx.shared.DICT:flush_expired(max_count?)''
 
-'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Flushes out the expired items in the dictionary, up to the maximal number specified by the optional <code>max_count</code> argument. When the <code>max_count</code> argument is given <code>0</code> or not given at all, then it means unlimited. Returns the number of items that have actually been flushed.
+
+Unlike the [[#ngx.shared.DICT.flush_all|flush_all]] method, this method actually free up the memory used by the expired items.
 
 This feature was first introduced in the <code>v0.6.3</code> release.
 
@@ -3722,7 +4648,7 @@ See also [[#ngx.shared.DICT.flush_all|ngx.shared.DICT.flush_all]] and [[#ngx.sha
 == ngx.shared.DICT.get_keys ==
 '''syntax:''' ''keys = ngx.shared.DICT:get_keys(max_count?)''
 
-'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Fetch a list of the keys from the dictionary, up to <code><max_count></code>.
 
@@ -3735,7 +4661,7 @@ This feature was first introduced in the <code>v0.7.3</code> release.
 == ngx.socket.udp ==
 '''syntax:''' ''udpsock = ngx.socket.udp()''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 Creates and returns a UDP or datagram-oriented unix domain socket object (also known as one type of the "cosocket" objects). The following methods are supported on this object:
 
@@ -3756,7 +4682,7 @@ See also [[#ngx.socket.tcp|ngx.socket.tcp]].
 
 '''syntax:''' ''ok, err = udpsock:setpeername("unix:/path/to/unix-domain.socket")''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 Attempts to connect a UDP socket object to a remote server or to a datagram unix domain socket file. Because the datagram protocol is actually connection-less, this method does not really establish a "connection", but only just set the name of the remote peer for subsequent read/write operations.
 
@@ -3809,7 +4735,7 @@ This method was first introduced in the <code>v0.5.7</code> release.
 == udpsock:send ==
 '''syntax:''' ''ok, err = udpsock:send(data)''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 Sends data on the current UDP or datagram unix domain socket object.
 
@@ -3822,7 +4748,7 @@ This feature was first introduced in the <code>v0.5.7</code> release.
 == udpsock:receive ==
 '''syntax:''' ''data, err = udpsock:receive(size?)''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 Receives data from the UDP or datagram unix domain socket object with an optional receive buffer size argument, <code>size</code>.
 
@@ -3853,7 +4779,7 @@ This feature was first introduced in the <code>v0.5.7</code> release.
 == udpsock:close ==
 '''syntax:''' ''ok, err = udpsock:close()''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 Closes the current UDP or datagram unix domain socket. It returns the <code>1</code> in case of success and returns <code>nil</code> with a string describing the error otherwise.
 
@@ -3864,7 +4790,7 @@ This feature was first introduced in the <code>v0.5.7</code> release.
 == udpsock:settimeout ==
 '''syntax:''' ''udpsock:settimeout(time)''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 Set the timeout value in milliseconds for subsequent socket operations (like [[#udpsock:receive|receive]]).
 
@@ -3875,11 +4801,12 @@ This feature was first introduced in the <code>v0.5.7</code> release.
 == ngx.socket.tcp ==
 '''syntax:''' ''tcpsock = ngx.socket.tcp()''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 Creates and returns a TCP or stream-oriented unix domain socket object (also known as one type of the "cosocket" objects). The following methods are supported on this object:
 
 * [[#tcpsock:connect|connect]]
+* [[#tcpsock:sslhandshake|sslhandshake]]
 * [[#tcpsock:send|send]]
 * [[#tcpsock:receive|receive]]
 * [[#tcpsock:close|close]]
@@ -3891,6 +4818,23 @@ Creates and returns a TCP or stream-oriented unix domain socket object (also kno
 
 It is intended to be compatible with the TCP API of the [http://w3.impa.br/~diego/software/luasocket/tcp.html LuaSocket] library but is 100% nonblocking out of the box. Also, we introduce some new APIs to provide more functionalities.
 
+The cosocket object created by this API function has exactly the same lifetime as the Lua handler creating it. So never pass the cosocket object to any other Lua handler (including ngx.timer callback functions) and never share the cosocket object between different NGINX requests.
+
+For every cosocket object's underlying connection, if you do not
+explicitly close it (via [[#tcpsock:close|close]]) or put it back to the connection
+pool (via [[#tcpsock:setkeepalive|setkeepalive]]), then it is automatically closed when one of
+the following two events happens:
+
+* the current request handler completes, or
+* the Lua cosocket object value gets collected by the Lua GC.
+
+Fatal errors in cosocket operations always automatically close the current
+connection (note that, read timeout error is the only error that is
+not fatal), and if you call [[#tcpsock:close|close]] on a closed connection, you will get
+the "closed" error.
+
+Starting from the <code>0.9.9</code> release, the cosocket object here is full-duplex, that is, a reader "light thread" and a writer "light thread" can operate on a single cosocket object simultaneously (both "light threads" must belong to the same Lua handler though, see reasons above). But you cannot have two "light threads" both reading (or writing or connecting) the same cosocket, otherwise you might get an error like "socket busy reading" when calling the methods of the cosocket object.
+
 This feature was first introduced in the <code>v0.5.0rc1</code> release.
 
 See also [[#ngx.socket.udp|ngx.socket.udp]].
@@ -3900,7 +4844,7 @@ See also [[#ngx.socket.udp|ngx.socket.udp]].
 
 '''syntax:''' ''ok, err = tcpsock:connect("unix:/path/to/unix-domain.socket", options_table?)''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 Attempts to connect a TCP socket object to a remote server or to a stream unix domain socket file without blocking.
 
@@ -3969,10 +4913,49 @@ The support for the options table argument was first introduced in the <code>v0.
 
 This method was first introduced in the <code>v0.5.0rc1</code> release.
 
+== tcpsock:sslhandshake ==
+'''syntax:''' ''session, err = tcpsock:sslhandshake(reused_session?, server_name?, ssl_verify?)''
+
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
+
+Does SSL/TLS handshake on the currently established connection.
+
+The optional <code>reused_session</code> argument can take a former SSL
+session userdata returned by a previous <code>sslhandshake</code>
+call for exactly the same target. For short-lived connections, reusing SSL
+sessions can usually speed up the handshake by one order by magnitude but it
+is not so useful if the connection pool is enabled. This argument defaults to
+`nil`. If this argument takes the boolean `false` value, no SSL session
+userdata would return by this call and only a Lua boolean will be returned as
+the first return value; otherwise the current SSL session will
+always be returned as the first argument in case of successes.
+
+The optional <code>server_name</code> argument is used to specify the server
+name for the new TLS extension Server Name Indication (SNI). Use of SNI can
+make different servers share the same IP address on the server side. Also,
+when SSL verification is enabled, this <code>server_name</code> argument is
+also used to validate the server name specified in the server certificate sent from
+the remote.
+
+The optional <code>ssl_verify</code> argument takes a Lua boolean value to
+control whether to perform SSL verification. When set to `true`, the server
+certificate will be verified according to the CA certificates specified by
+the [[#lua_ssl_trusted_certificate|lua_ssl_trusted_certificate]] directive.
+You may also need to adjust the [[#lua_ssl_verify_depth|lua_ssl_verify_depth]]
+directive to control how deep we should follow along the certificate chain.
+Also, when the <code>ssl_verify</code> argument is true and the
+<code>server_name</code> argument is also specified, the latter will be used
+to validate the server name in the server certificate.
+
+For connections that have already done SSL/TLS handshake, this method returns
+immediately.
+
+This method was first introduced in the <code>v0.9.11</code> release.
+
 == tcpsock:send ==
 '''syntax:''' ''bytes, err = tcpsock:send(data)''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 Sends data without blocking on the current TCP or Unix Domain Socket connection.
 
@@ -3991,6 +4974,8 @@ Timeout for the sending operation is controlled by the [[#lua_socket_send_timeou
 
 It is important here to call the [[#tcpsock:settimeout|settimeout]] method ''before'' calling this method.
 
+In case of any connection errors, this method always automatically closes the current connection.
+
 This feature was first introduced in the <code>v0.5.0rc1</code> release.
 
 == tcpsock:receive ==
@@ -3998,7 +4983,7 @@ This feature was first introduced in the <code>v0.5.0rc1</code> release.
 
 '''syntax:''' ''data, err, partial = tcpsock:receive(pattern?)''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 Receives data from the connected socket according to the reading pattern or size.
 
@@ -4029,12 +5014,14 @@ Timeout for the reading operation is controlled by the [[#lua_socket_read_timeou
 
 It is important here to call the [[#tcpsock:settimeout|settimeout]] method ''before'' calling this method.
 
+Since the <code>v0.8.8</code> release, this method no longer automatically closes the current connection when the read timeout error happens. For other connection errors, this method always automatically closes the connection.
+
 This feature was first introduced in the <code>v0.5.0rc1</code> release.
 
 == tcpsock:receiveuntil ==
 '''syntax:''' ''iterator = tcpsock:receiveuntil(pattern, options?)''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 This method returns an iterator Lua function that can be called to read the data stream until it sees the specified pattern or an error occurs.
 
@@ -4119,12 +5106,14 @@ The <code>inclusive</code> takes a boolean value to control whether to include t
 
 Then for the input data stream <code>"hello world _END_ blah blah blah"</code>, then the example above will output <code>hello world _END_</code>, including the pattern string <code>_END_</code> itself.
 
+Since the <code>v0.8.8</code> release, this method no longer automatically closes the current connection when the read timeout error happens. For other connection errors, this method always automatically closes the connection.
+
 This method was first introduced in the <code>v0.5.0rc1</code> release.
 
 == tcpsock:close ==
 '''syntax:''' ''ok, err = tcpsock:close()''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 Closes the current TCP or stream unix domain socket. It returns the <code>1</code> in case of success and returns <code>nil</code> with a string describing the error otherwise.
 
@@ -4137,7 +5126,7 @@ This feature was first introduced in the <code>v0.5.0rc1</code> release.
 == tcpsock:settimeout ==
 '''syntax:''' ''tcpsock:settimeout(time)''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 Set the timeout value in milliseconds for subsequent socket operations ([[#tcpsock:connect|connect]], [[#tcpsock:receive|receive]], and iterators returned from [[#tcpsock:receiveuntil|receiveuntil]]).
 
@@ -4150,7 +5139,7 @@ This feature was first introduced in the <code>v0.5.0rc1</code> release.
 == tcpsock:setoption ==
 '''syntax:''' ''tcpsock:setoption(option, value?)''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 This function is added for [http://w3.impa.br/~diego/software/luasocket/tcp.html LuaSocket] API compatibility and does nothing for now. Its functionality will be implemented in future.
 
@@ -4159,7 +5148,7 @@ This feature was first introduced in the <code>v0.5.0rc1</code> release.
 == tcpsock:setkeepalive ==
 '''syntax:''' ''ok, err = tcpsock:setkeepalive(timeout?, size?)''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 Puts the current socket's connection immediately into the cosocket built-in connection pool and keep it alive until other [[#tcpsock:connect|connect]] method calls request it or the associated maximal idle timeout is expired.
 
@@ -4182,7 +5171,7 @@ This feature was first introduced in the <code>v0.5.0rc1</code> release.
 == tcpsock:getreusedtimes ==
 '''syntax:''' ''count, err = tcpsock:getreusedtimes()''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 This method returns the (successfully) reused times for the current connection. In case of error, it returns <code>nil</code> and a string describing the error.
 
@@ -4195,7 +5184,7 @@ This feature was first introduced in the <code>v0.5.0rc1</code> release.
 
 '''syntax:''' ''tcpsock, err = ngx.socket.connect("unix:/path/to/unix-domain.socket")''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 This function is a shortcut for combining [[#ngx.socket.tcp|ngx.socket.tcp()]] and the [[#tcpsock:connect|connect()]] method call in a single operation. It is actually implemented like this:
 
@@ -4215,7 +5204,7 @@ This feature was first introduced in the <code>v0.5.0rc1</code> release.
 == ngx.get_phase ==
 '''syntax:''' ''str = ngx.get_phase()''
 
-'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 Retrieves the current running phase name. Possible return values are
 
@@ -4235,73 +5224,15 @@ Retrieves the current running phase name. Possible return values are
 : for the context of [[#body_filter_by_lua|body_filter_by_lua]] or [[#body_filter_by_lua_file|body_filter_by_lua_file]].
 * <code>log</code>
 : for the context of [[#log_by_lua|log_by_lua]] or [[#log_by_lua_file|log_by_lua_file]].
+* <code>timer</code>
+: for the context of user callback functions for [[#ngx.timer.at|ngx.timer.*]].
 
 This API was first introduced in the <code>v0.5.10</code> release.
-
-== coroutine.create ==
-'''syntax:''' ''co = coroutine.create(f)''
-
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
-
-Creates a user Lua coroutines with a Lua function, and returns a coroutine object.
-
-Similar to the standard Lua [http://www.lua.org/manual/5.1/manual.html#pdf-coroutine.create coroutine.create] API, but works in the context of the Lua coroutines created by ngx_lua.
-
-This API was first introduced in the <code>v0.6.0</code> release.
-
-== coroutine.resume ==
-'''syntax:''' ''ok, ... = coroutine.resume(co, ...)''
-
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
-
-Resumes the executation of a user Lua coroutine object previously yielded or just created.
-
-Similar to the standard Lua [http://www.lua.org/manual/5.1/manual.html#pdf-coroutine.resume coroutine.resume] API, but works in the context of the Lua coroutines created by ngx_lua.
-
-This API was first introduced in the <code>v0.6.0</code> release.
-
-== coroutine.yield ==
-'''syntax:''' ''... = coroutine.yield(co, ...)''
-
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
-
-Yields the executation of the current user Lua coroutine.
-
-Similar to the standard Lua [http://www.lua.org/manual/5.1/manual.html#pdf-coroutine.yield coroutine.yield] API, but works in the context of the Lua coroutines created by ngx_lua.
-
-This API was first introduced in the <code>v0.6.0</code> release.
-
-== coroutine.wrap ==
-'''syntax:''' ''co = coroutine.wrap(f)''
-
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
-
-Similar to the standard Lua [http://www.lua.org/manual/5.1/manual.html#pdf-coroutine.wrap coroutine.wrap] API, but works in the context of the Lua coroutines created by ngx_lua.
-
-This API was first introduced in the <code>v0.6.0</code> release.
-
-== coroutine.running ==
-'''syntax:''' ''co = coroutine.running()''
-
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
-
-Identical to the standard Lua [http://www.lua.org/manual/5.1/manual.html#pdf-coroutine.running coroutine.running] API.
-
-This API was first enabled in the <code>v0.6.0</code> release.
-
-== coroutine.status ==
-'''syntax:''' ''status = coroutine.status(co)''
-
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
-
-Identical to the standard Lua [http://www.lua.org/manual/5.1/manual.html#pdf-coroutine.status coroutine.status] API.
-
-This API was first enabled in the <code>v0.6.0</code> release.
 
 == ngx.thread.spawn ==
 '''syntax:''' ''co = ngx.thread.spawn(func, arg1, arg2, ...)''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 Spawns a new user "light thread" with the Lua function <code>func</code> as well as those optional arguments <code>arg1</code>, <code>arg2</code>, and etc. Returns a Lua thread (or Lua coroutine) object represents this "light thread".
 
@@ -4314,6 +5245,7 @@ After <code>ngx.thread.spawn</code> returns, the newly-created "light thread" wi
 All the Lua code chunks running by [[#rewrite_by_lua|rewrite_by_lua]], [[#access_by_lua|access_by_lua]], and [[#content_by_lua|content_by_lua]] are in a boilerplate "light thread" created automatically by ngx_lua. Such boilerplate "light thread" are also called "entry threads".
 
 By default, the corresponding Nginx handler (e.g., [[#rewrite_by_lua|rewrite_by_lua]] handler) will not terminate until
+
 # both the "entry thread" and all the user "light threads" terminates,
 # a "light thread" (either the "entry thread" or a user "light thread" aborts by calling [[#ngx.exit|ngx.exit]], [[#ngx.exec|ngx.exec]], [[#ngx.redirect|ngx.redirect]], or [[#ngx.req.set_uri|ngx.req.set_uri(uri, true)]], or
 # the "entry thread" terminates with a Lua error.
@@ -4323,19 +5255,21 @@ When the user "light thread" terminates with a Lua error, however, it will not a
 Due to the limitation in the Nginx subrequest model, it is not allowed to abort a running Nginx subrequest in general. So it is also prohibited to abort a running "light thread" that is pending on one ore more Nginx subrequests. You must call [[#ngx.thread.wait|ngx.thread.wait]] to wait for those "light thread" to terminate before quitting the "world". A notable exception here is that you can abort pending subrequests by calling [[#ngx.exit|ngx.exit]] with and only with the status code <code>ngx.ERROR</code> (-1), <code>408</code>, <code>444</code>, or <code>499</code>.
 
 The "light threads" are not scheduled in a pre-emptive way. In other words, no time-slicing is performed automatically. A "light thread" will keep running exclusively on the CPU until
+
 # a (nonblocking) I/O operation cannot be completed in a single run,
 # it calls [[#coroutine.yield|coroutine.yield]] to actively give up execution, or
 # it is aborted by a Lua error or an invocation of [[#ngx.exit|ngx.exit]], [[#ngx.exec|ngx.exec]], [[#ngx.redirect|ngx.redirect]], or [[#ngx.req.set_uri|ngx.req.set_uri(uri, true)]].
 
 For the first two cases, the "light thread" will usually be resumed later by the ngx_lua scheduler unless a "stop-the-world" event happens.
 
-User "light threads" can create "light threads" themselves and normal user coroutiens created by [[#coroutine.create|coroutine.create]] can also create "light threads". The coroutine (be it a normal Lua coroutine or a "light thread") that directly spawns the "light thread" is called the "parent coroutine" for the "light thread" newly spawned.
+User "light threads" can create "light threads" themselves. And normal user coroutines created by [[#coroutine.create|coroutine.create]] can also create "light threads". The coroutine (be it a normal Lua coroutine or a "light thread") that directly spawns the "light thread" is called the "parent coroutine" for the "light thread" newly spawned.
 
 The "parent coroutine" can call [[#ngx.thread.wait|ngx.thread.wait]] to wait on the termination of its child "light thread".
 
 You can call coroutine.status() and coroutine.yield() on the "light thread" coroutines.
 
 The status of the "light thread" coroutine can be "zombie" if
+
 # the current "light thread" already terminates (either successfully or with an error),
 # its parent coroutine is still alive, and
 # its parent coroutine is not waiting on it with [[#ngx.thread.wait|ngx.thread.wait]].
@@ -4431,7 +5365,7 @@ This API was first enabled in the <code>v0.7.0</code> release.
 == ngx.thread.wait ==
 '''syntax:''' ''ok, res1, res2, ... = ngx.thread.wait(thread1, thread2, ...)''
 
-'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
 
 Waits on one or more child "light threads" and returns the results of the first "light thread" that terminates (either successfully or with an error).
 
@@ -4526,6 +5460,17 @@ And it will generate the following output:
 
 This API was first enabled in the <code>v0.7.0</code> release.
 
+== ngx.thread.kill ==
+'''syntax:''' ''ok, err = ngx.thread.kill(thread)''
+
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, ngx.timer.*''
+
+Kills a running "light thread" created by [[#ngx.thread.spawn|ngx.thread.spawn]]. Returns a true value when successful or <code>nil</code> and a string describing the error otherwise.
+
+According to the current implementation, only the parent coroutine (or "light thread") can kill a thread. Also, a running "light thread" with pending NGINX subrequests (initiated by [[#ngx.location.capture|ngx.location.capture]] for example) cannot be killed due to a limitation in the NGINX core.
+
+This API was first enabled in the <code>v0.9.9</code> release.
+
 == ngx.on_abort ==
 '''syntax:''' ''ok, err = ngx.on_abort(callback)''
 
@@ -4562,10 +5507,200 @@ This API was first introduced in the <code>v0.7.4</code> release.
 
 See also [[#lua_check_client_abort|lua_check_client_abort]].
 
+== ngx.timer.at ==
+'''syntax:''' ''ok, err = ngx.timer.at(delay, callback, user_arg1, user_arg2, ...)''
+
+'''context:''' ''init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
+
+Creates an Nginx timer with a user callback function as well as optional user arguments.
+
+The first argument, <code>delay</code>, specifies the delay for the timer,
+in seconds. One can specify fractional seconds like <code>0.001</code> to mean 1
+millisecond here. <code>0</code> delay can also be specified, in which case the
+timer will immediately expire when the current handler yields
+execution.
+
+The second argument, <code>callback</code>, can
+be any Lua function, which will be invoked later in a background
+"light thread" after the delay specified. The user callback will be
+called automatically by the Nginx core with the arguments <code>premature</code>,
+<code>user_arg1</code>, <code>user_arg2</code>, and etc, where the <code>premature</code>
+argument takes a boolean value indicating whether it is a premature timer
+expiration or not, and <code>user_arg1</code>, <code>user_arg2</code>, and etc, are
+those (extra) user arguments specified when calling <code>ngx.timer.at</code>
+as the remaining arguments.
+
+Premature timer expiration happens when the Nginx worker process is
+trying to shut down, as in an Nginx configuration reload triggered by
+the <code>HUP</code> signal or in an Nginx server shutdown. When the Nginx worker
+is trying to shut down, one can no longer call <code>ngx.timer.at</code> to
+create new timers with nonzero delays and in that case <code>ngx.timer.at</code> will return <code>nil</code> and
+a string describing the error, that is, "process exiting".
+
+Starting from the <code>v0.9.3</code> release, it is allowed to create zero-delay timers even when the Nginx worker process starts shutting down.
+
+When a timer expires, the user Lua code in the timer callback is
+running in a "light thread" detached completely from the original
+request creating the timer. So objects with the same lifetime as the
+request creating them, like [[#ngx.socket.tcp|cosockets]], cannot be shared between the
+original request and the timer user callback function.
+
+Here is a simple example:
+
+<geshi lang="nginx">
+    location / {
+        ...
+        log_by_lua '
+            local function push_data(premature, uri, args, status)
+                -- push the data uri, args, and status to the remote
+                -- via ngx.socket.tcp or ngx.socket.udp
+                -- (one may want to buffer the data in Lua a bit to
+                -- save I/O operations)
+            end
+            local ok, err = ngx.timer.at(0, push_data,
+                                         ngx.var.uri, ngx.var.args, ngx.header.status)
+            if not ok then
+                ngx.log(ngx.ERR, "failed to create timer: ", err)
+                return
+            end
+        ';
+    }
+</geshi>
+
+One can also create infinite re-occuring timers, for instance, a timer getting triggered every <code>5</code> seconds, by calling <code>ngx.timer.at</code> recursively in the timer callback function. Here is such an example,
+
+<geshi lang="lua">
+    local delay = 5
+    local handler
+    handler = function (premature)
+        -- do some routine job in Lua just like a cron job
+        if premature then
+            return
+        end
+        local ok, err = ngx.timer.at(delay, handler)
+        if not ok then
+            ngx.log(ngx.ERR, "failed to create the timer: ", err)
+            return
+        end
+    end
+    
+    local ok, err = ngx.timer.at(delay, handler)
+    if not ok then
+        ngx.log(ngx.ERR, "failed to create the timer: ", err)
+        return
+    end
+</geshi>
+
+Because timer callbacks run in the background and their running time
+will not add to any client request's response time, they can easily
+accumulate in the server and exhaust system resources due to either
+Lua programming mistakes or just too much client traffic. To prevent
+extreme consequences like crashing the Nginx server, there are
+built-in limitations on both the number of "pending timers" and the
+number of "running timers" in an Nginx worker process. The "pending
+timers" here mean timers that have not yet been expired and "running
+timers" are those whose user callbacks are currently running.
+
+The maximal number of pending timers allowed in an Nginx
+worker is constrolled by the [[#lua_max_pending_timers|lua_max_pending_timers]]
+directive. The maximal number of running timers is controlled by the
+[[#lua_max_running_timers|lua_max_running_timers]] directive.
+
+According to the current implementation, each "running timer" will
+take one (fake) connection record from the global connection record
+list configured by the standard [[EventsModule#worker_connections|worker_connections]] directive in
+<code>nginx.conf</code>. So ensure that the
+[[EventsModule#worker_connections|worker_connections]] directive is set to
+a large enough value that takes into account both the real connections
+and fake connections required by timer callbacks (as limited by the
+[[#lua_max_running_timers|lua_max_running_timers]] directive).
+
+A lot of the Lua APIs for Nginx are enabled in the context of the timer
+callbacks, like stream/datagram cosockets ([[#ngx.socket.tcp|ngx.socket.tcp]] and [[#ngx.socket.udp|ngx.socket.udp]]), shared
+memory dictionaries ([[#ngx.shared.DICT|ngx.shared.DICT]]), user coroutines ([[#coroutine.create|coroutine.*]]),
+user "light threads" ([[#ngx.thread.spawn|ngx.thread.*]]), [[#ngx.exit|ngx.exit]], [[#ngx.now|ngx.now]]/[[#ngx.time|ngx.time]],
+[[#ngx.md5|ngx.md5]]/[[#ngx.sha1_bin|ngx.sha1_bin]], are all allowed. But the subrequest API (like
+[[#ngx.location.capture|ngx.location.capture]]), the [[#ngx.req.start_time|ngx.req.*]] API, the downstream output API
+(like [[#ngx.say|ngx.say]], [[#ngx.print|ngx.print]], and [[#ngx.flush|ngx.flush]]) are explicitly disabled in
+this context.
+
+You can pass most of the standard Lua values (nils, booleans, numbers, strings, tables, closures, file handles, and etc) into the timer callback, either explicitly as user arguments or implicitly as upvalues for the callback closure. There are several exceptions, however: you ''cannot'' pass any thread objects returned by [[#coroutine.create|coroutine.create]] and [[#ngx.thread.spawn|ngx.thread.spawn]] or any cosocket objects returned by [[#ngx.socket.tcp|ngx.socket.tcp]], [[#ngx.socket.udp|ngx.socket.udp]], and [[#ngx.req.socket|ngx.req.socket]] because these objects' lifetime is bound to the request context creating them while the timer callback is detached from the creating request's context (by design) and runs in its own (fake) request context. If you try to share the thread or cosocket objects across the boundary of the creating request, then you will get the "no co ctx found" error (for threads) or "bad request" (for cosockets). It is fine, however, to create all these objects inside your timer callback.
+
+This API was first introduced in the <code>v0.8.0</code> release.
+
+== ngx.config.debug ==
+'''syntax:''' ''debug = ngx.config.debug''
+
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*, init_by_lua*, init_worker_by_lua*''
+
+This boolean field indicates whether the current Nginx is a debug build, i.e., being built by the <code>./configure</code> option <code>--with-debug</code>.
+
+This field was first introduced in the <code>0.8.7</code>.
+
+== ngx.config.prefix ==
+
+'''syntax:''' ''prefix = ngx.config.prefix()''
+
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*, init_by_lua*, init_worker_by_lua*''
+
+Returns the Nginx server "prefix" path, as determined by the <code>-p</code> command-line option when running the nginx executable, or the path specified by the <code>--prefix</code> command-line option when building Nginx with the <code>./configure</code> script.
+
+This function was first introduced in the <code>0.9.2</code>.
+
+== ngx.config.nginx_version ==
+
+'''syntax:''' ''ver = ngx.config.nginx_version''
+
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*, init_by_lua*, init_worker_by_lua*''
+
+This field take an integral value indicating the version number of the current Nginx core being used. For example, the version number <code>1.4.3</code> results in the Lua number 1004003.
+
+This API was first introduced in the <code>0.9.3</code> release.
+
+== ngx.config.nginx_configure ==
+
+'''syntax:''' ''str = ngx.config.nginx_configure()''
+
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*, init_by_lua*''
+
+This function returns a string for the NGINX <code>./configure</code> command's arguments string.
+
+This API was first introduced in the <code>0.9.5</code> release.
+
+== ngx.config.ngx_lua_version ==
+
+'''syntax:''' ''ver = ngx.config.ngx_lua_version''
+
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*, init_by_lua*''
+
+This field take an integral value indicating the version number of the current <code>ngx_lua</code> module being used. For example, the version number <code>0.9.3</code> results in the Lua number 9003.
+
+This API was first introduced in the <code>0.9.3</code> release.
+
+== ngx.worker.exiting ==
+
+'''syntax:''' ''exiting = ngx.worker.exiting()''
+
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*, init_by_lua*, init_worker_by_lua*''
+
+This function returns a boolean value indicating whether the current Nginx worker process already starts exiting. Nginx worker process exiting happens on Nginx server quit or configuration reload (aka HUP reload).
+
+This API was first introduced in the <code>0.9.3</code> release.
+
+== ngx.worker.pid ==
+
+'''syntax:''' ''pid = ngx.worker.pid()''
+
+'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*, init_by_lua*, init_worker_by_lua*''
+
+This function returns a Lua number for the process ID (PID) of the current Nginx worker process. This API is more efficient than <code>ngx.var.pid</code> and can be used in contexts where the [[#ngx.var.VARIABLE|ngx.var.VARIABLE]] API cannot be used (like [[#init_worker_by_lua|init_worker_by_lua]]).
+
+This API was first introduced in the <code>0.9.5</code> release.
+
 == ndk.set_var.DIRECTIVE ==
 '''syntax:''' ''res = ndk.set_var.DIRECTIVE_NAME''
 
-'''context:''' ''set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*''
+'''context:''' ''init_worker_by_lua*, set_by_lua*, rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua*, log_by_lua*, ngx.timer.*''
 
 This mechanism allows calling other nginx C modules' directives that are implemented by [https://github.com/simpl/ngx_devel_kit Nginx Devel Kit] (NDK)'s set_var submodule's <code>ndk_set_var_value</code>.
 
@@ -4599,462 +5734,75 @@ Similarly, the following directives provided by [[HttpEncryptedSessionModule]] c
 
 This feature requires the [https://github.com/simpl/ngx_devel_kit ngx_devel_kit] module.
 
-= Lua/LuaJIT bytecode support =
+== coroutine.create ==
+'''syntax:''' ''co = coroutine.create(f)''
 
-As from the <code>v0.5.0rc32</code> release, all <code>*_by_lua_file</code> configure directives (such as [[#content_by_lua_file|content_by_lua_file]]) support loading Lua 5.1 and LuaJIT 2.0 raw bytecode files directly.
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, init_by_lua*, ngx.timer.*, header_filter_by_lua*, body_filter_by_lua*''
 
-Please note that the bytecode format used by LuaJIT 2.0 is not compatible with that used by the standard Lua 5.1 interpreter. So if using LuaJIT 2.0 with ngx_lua, LuaJIT compatible bytecode files must be generated as shown:
+Creates a user Lua coroutines with a Lua function, and returns a coroutine object.
 
-<geshi lang="bash">
-    /path/to/luajit/bin/luajit -b /path/to/input_file.lua /path/to/output_file.luac
-</geshi>
+Similar to the standard Lua [http://www.lua.org/manual/5.1/manual.html#pdf-coroutine.create coroutine.create] API, but works in the context of the Lua coroutines created by ngx_lua.
 
-The <code>-bg</code> option can be used to include debug information in the LuaJIT bytecode file:
+This API was first usable in the context of [[#init_by_lua|init_by_lua*]] since the <code>0.9.2</code>.
 
-<geshi lang="bash">
-    /path/to/luajit/bin/luajit -bg /path/to/input_file.lua /path/to/output_file.luac
-</geshi>
+This API was first introduced in the <code>v0.6.0</code> release.
 
-Please refer to the official LuaJIT documentation on the <code>-b</code> option for more details:
+== coroutine.resume ==
+'''syntax:''' ''ok, ... = coroutine.resume(co, ...)''
 
-http://luajit.org/running.html#opt_b
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, init_by_lua*, ngx.timer.*, header_filter_by_lua*, body_filter_by_lua*''
 
-Similarly, if using the standard Lua 5.1 interpreter with ngx_lua, Lua compatible bytecode files must be generated using the <code>luac</code> commandline utility as shown:
+Resumes the executation of a user Lua coroutine object previously yielded or just created.
 
-<geshi lang="bash">
-    luac -o /path/to/output_file.luac /path/to/input_file.lua
-</geshi>
+Similar to the standard Lua [http://www.lua.org/manual/5.1/manual.html#pdf-coroutine.resume coroutine.resume] API, but works in the context of the Lua coroutines created by ngx_lua.
 
-Unlike as with LuaJIT, debug information is included in standard Lua 5.1 bytecode files by default. This can be striped out by specifying the <code>-s</code> option as shown:
+This API was first usable in the context of [[#init_by_lua|init_by_lua*]] since the <code>0.9.2</code>.
 
-<geshi lang="bash">
-    luac -s -o /path/to/output_file.luac /path/to/input_file.lua
-</geshi>
+This API was first introduced in the <code>v0.6.0</code> release.
 
-Attempts to load standard Lua 5.1 bytecode files into ngx_lua instances linked to LuaJIT 2.0 or vice versa, will result in an error message, such as that below, being logged into the Nginx <code>error.log</code> file:
+== coroutine.yield ==
+'''syntax:''' ''... = coroutine.yield(...)''
 
-<geshi lang="text">
-    [error] 13909#0: *1 failed to load Lua inlined code: bad byte-code header in /path/to/test_file.luac
-</geshi>
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, init_by_lua*, ngx.timer.*, header_filter_by_lua*, body_filter_by_lua*''
 
-Loading bytecode files via the Lua primitives like <code>require</code> and <code>dofile</code> should always work as expected.
+Yields the executation of the current user Lua coroutine.
 
-= HTTP 1.0 support =
+Similar to the standard Lua [http://www.lua.org/manual/5.1/manual.html#pdf-coroutine.yield coroutine.yield] API, but works in the context of the Lua coroutines created by ngx_lua.
 
-The HTTP 1.0 protocol does not support chunked output and requires an explicit <code>Content-Length</code> header when the response body is not empty in order to support the HTTP 1.0 keep-alive.
-So when a HTTP 1.0 request is made and the [[#lua_http10_buffering|lua_http10_buffering]] directive is turned <code>on</code>, ngx_lua will buffer the
-output of [[#ngx.say|ngx.say]] and [[#ngx.print|ngx.print]] calls and also postpone sending response headers until all the response body output is received.
-At that time ngx_lua can calculate the total length of the body and construct a proper <code>Content-Length</code> header to return to the HTTP 1.0 client.
-If the <code>Content-Length</code> response header is set in the running Lua code, however, this buffering will be disabled even if the [[#lua_http10_buffering|lua_http10_buffering]] directive is turned <code>on</code>.
+This API was first usable in the context of [[#init_by_lua|init_by_lua*]] since the <code>0.9.2</code>.
 
-For large streaming output responses, it is important to disable the [[#lua_http10_buffering|lua_http10_buffering]] directive to minimise memory usage.
+This API was first introduced in the <code>v0.6.0</code> release.
 
-Note that common HTTP benchmark tools such as <code>ab</code> and <code>http_load</code> issue HTTP 1.0 requests by default.
-To force <code>curl</code> to send HTTP 1.0 requests, use the <code>-0</code> option.
+== coroutine.wrap ==
+'''syntax:''' ''co = coroutine.wrap(f)''
 
-= Data Sharing within an Nginx Worker =
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, init_by_lua*, ngx.timer.*, header_filter_by_lua*, body_filter_by_lua*''
 
-To globally share data among all the requests handled by the same nginx worker process, encapsulate the shared data into a Lua module, use the Lua <code>require</code> builtin to import the module, and then manipulate the shared data in Lua. This works because required Lua modules are loaded only once and all coroutines will share the same copy of the module (both its code and data). Note however that Lua global variables (note, not module-level variables) WILL NOT persist between requests because of the one-coroutine-per-request isolation design.
+Similar to the standard Lua [http://www.lua.org/manual/5.1/manual.html#pdf-coroutine.wrap coroutine.wrap] API, but works in the context of the Lua coroutines created by ngx_lua.
 
-Here is a complete small example:
+This API was first usable in the context of [[#init_by_lua|init_by_lua*]] since the <code>0.9.2</code>.
 
-<geshi lang="lua">
-    -- mydata.lua
-    module(...)
- 
-    local data = {
-        dog = 3,
-        cat = 4,
-        pig = 5,
-    }
- 
-    function get_age(name)
-        return data[name]
-    end
-</geshi>
+This API was first introduced in the <code>v0.6.0</code> release.
 
-and then accessing it from <code>nginx.conf</code>:
+== coroutine.running ==
+'''syntax:''' ''co = coroutine.running()''
 
-<geshi lang="nginx">
-    location /lua {
-        content_by_lua '
-            local mydata = require "mydata"
-            ngx.say(mydata.get_age("dog"))
-        ';
-    }
-</geshi>
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, init_by_lua*, ngx.timer.*, header_filter_by_lua*, body_filter_by_lua*''
 
-The <code>mydata</code> module in this example will only be loaded and run on the first request to the location <code>/lua</code>,
-and all subsequent requests to the same nginx worker process will use the reloaded instance of the
-module as well as the same copy of the data in it, until a <code>HUP</code> signal is sent to the Nginx master process to force a reload.
-This data sharing technique is essential for high performance Lua applications based on this module.
+Identical to the standard Lua [http://www.lua.org/manual/5.1/manual.html#pdf-coroutine.running coroutine.running] API.
 
-Note that this data sharing is on a ''per-worker'' basis and not on a ''per-server'' basis. That is, when there are multiple nginx worker processes under an Nginx master, data sharing cannot cross the process boundary between these workers.
+This API was first usable in the context of [[#init_by_lua|init_by_lua*]] since the <code>0.9.2</code>.
 
-If server-wide data sharing is required, then use one or more of the following approaches:
-# Use the [[#ngx.shared.DICT|ngx.shared.DICT]] API provided by this module.
-# Use only a single nginx worker and a single server (this is however not recommended when there is a multi core CPU or multiple CPUs in a single machine).
-# Use data storage mechanisms such as <code>memcached</code>, <code>redis</code>, <code>MySQL</code> or <code>PostgreSQL</code>. [http://openresty.org The ngx_openresty bundle] associated with this module comes with a set of companion Nginx modules and Lua libraries that provide interfaces with these data storage mechanisms.
+This API was first enabled in the <code>v0.6.0</code> release.
 
-= Known Issues =
+== coroutine.status ==
+'''syntax:''' ''status = coroutine.status(co)''
 
-== TCP socket connect operation issues ==
-The [[#tcpsock:connect|tcpsock:connect]] method may indicate <code>success</code> despite connection failures such as with <code>Connection Refused</code> errors. 
-
-However, later attempts to manipulate the cosocket object will fail and return the actual error status message generated by the failed connect operation. 
-
-This issue is due to limitations in the Nginx event model and only appears to affect Mac OS X.
-
-== Lua Coroutine Yielding/Resuming ==
-* Lua's <code>dofile</code> builtin is implemented as a C function in both Lua 5.1 and LuaJIT 2.0 and when [[#ngx.location.capture|ngx.location.capture]] is called, [[#ngx.exec|ngx.exec]], [[#ngx.exit|ngx.exit]] or [[#ngx.req.read_body|ngx.req.read_body]] or similar in the file to be loaded by <code>dofile</code>, a coroutine yield across the C function boundary will be initiated. This however is not normally allowed within ngx_lua and will usually result in error messages like <code>lua handler aborted: runtime error: attempt to yield across C-call boundary</code>. To avoid this, define a real Lua module and use the Lua <code>require</code> builtin instead.
-* As the standard Lua 5.1 interpreter's VM is not fully resumable, the methods [[#ngx.location.capture|ngx.location.capture]], [[#ngx.location.capture_multi|ngx.location.capture_multi]], [[#ngx.redirect|ngx.redirect]], [[#ngx.exec|ngx.exec]], and [[#ngx.exit|ngx.exit]] cannot be used within the context of a Lua [http://www.lua.org/manual/5.1/manual.html#pdf-pcall pcall()] or [http://www.lua.org/manual/5.1/manual.html#pdf-xpcall xpcall()] or even the first line of the <code>for ... in ...</code> statement when the standard Lua 5.1 interpreter is used and the <code>attempt to yield across metamethod/C-call boundary</code> error will be produced. Please use LuaJIT 2.0, which supports a fully resumable VM, to avoid this.
-
-== Lua Variable Scope ==
-Care must be taken when importing modules and this form should be used:
-
-<geshi lang="lua">
-    local xxx = require('xxx')
-</geshi>
-
-: instead of the old deprecated form:
-
-<geshi lang="lua">
-    require('xxx')
-</geshi>
-
-Here is the reason: by design, the global environment has exactly the same lifetime as the Nginx request handler associated with it. Each request handler has its own set of Lua global variables and that is the idea of request isolation. The Lua module is actually loaded by the first Nginx request handler and is cached by the <code>require()</code> built-in in the package.loaded table for later reference, and <code>require()</code> has the side effect of setting a global variable to the loaded module table. But this global variable will be cleared at the end of the request handler,  and every subsequent request handler all has its own (clean) global environment. So one will get Lua exception for accessing the <code>nil</code> value.
-
-It is recommended to always place the following piece of code at the end of Lua modules that use the I/O operations to prevent casual use of module-level global variables that are shared among ''all'' requests:
-
-<geshi lang="lua">
-    local class_mt = {
-        -- to prevent use of casual module global variables
-        __newindex = function (table, key, val)
-            error('attempt to write to undeclared variable "' .. key .. '"')
-        end
-    }
-    setmetatable(_M, class_mt)
-</geshi>
-
-This will guarantee that local variables in the Lua module functions are all declared with the <code>local</code> keyword, otherwise a runtime exception will be thrown. It prevents undesirable race conditions while accessing such variables. See [[#Data_Sharing_within_an_Nginx_Worker|Data Sharing within an Nginx Worker]] for the reasons behind this.
-
-== Locations Configured by Subrequest Directives of Other Modules ==
-The [[#ngx.location.capture|ngx.location.capture]] and [[#ngx.location.capture_multi|ngx.location.capture_multi]] directives cannot capture locations that include the [[HttpEchoModule#echo_location|echo_location]], [[HttpEchoModule#echo_location_async|echo_location_async]], [[HttpEchoModule#echo_subrequest|echo_subrequest]], or [[HttpEchoModule#echo_subrequest_async|echo_subrequest_async]] directives.
-
-<geshi lang="nginx">
-    location /foo {
-        content_by_lua '
-            res = ngx.location.capture("/bar")
-        ';
-    }
-    location /bar {
-        echo_location /blah;
-    }
-    location /blah {
-        echo "Success!";
-    }
-</geshi>
-
-<geshi lang="nginx">
-    $ curl -i http://example.com/foo
-</geshi>
-
-will not work as expected.
-
-== Special PCRE Sequences ==
-PCRE sequences such as <code>\d</code>, <code>\s</code>, or <code>\w</code>, require special attention because in string literals, the backslash character, <code>\</code>, is stripped out by both the Lua language parser and by the Nginx config file parser before processing. So the following snippet will not work as expected:
-
-<geshi lang="nginx">
-    # nginx.conf
-    ? location /test {
-    ?     content_by_lua '
-    ?         local regex = "\d+"  -- THIS IS WRONG!!
-    ?         local m = ngx.re.match("hello, 1234", regex)
-    ?         if m then ngx.say(m[0]) else ngx.say("not matched!") end
-    ?     ';
-    ? }
-    # evaluates to "not matched!"
-</geshi>
-
-To avoid this, ''double'' escape the backslash:
-
-<geshi lang="nginx">
-    # nginx.conf
-    location /test {
-        content_by_lua '
-            local regex = "\\\\d+"
-            local m = ngx.re.match("hello, 1234", regex)
-            if m then ngx.say(m[0]) else ngx.say("not matched!") end
-        ';
-    }
-    # evaluates to "1234"
-</geshi>
-
-Here, <code>\\\\d+</code> is stripped down to <code>\\d+</code> by the Nginx config file parser and this is further stripped down to <code>\d+</code> by the Lua language parser before running.
-
-Alternatively, the regex pattern can be presented as a long-bracketed Lua string literal by encasing it in "long brackets", <code>&#91;[...]]</code>, in which case backslashes have to only be escaped once for the Nginx config file parser. 
-
-<geshi lang="nginx">
-    # nginx.conf
-    location /test {
-        content_by_lua '
-            local regex = [[\\d+]]
-            local m = ngx.re.match("hello, 1234", regex)
-            if m then ngx.say(m[0]) else ngx.say("not matched!") end
-        ';
-    }
-    # evaluates to "1234"
-</geshi>
-
-Here, <code>&#91;[\\d+]]</code> is stripped down to <code>&#91;[\d+]]</code> by the Nginx config file parser and this is processed correctly.
-
-Note that a longer from of the long bracket, <code>[=[...]=]</code>, may be required if the regex pattern contains <code>&#91;...]</code> sequences. 
-The <code>[=[...]=]</code> form may be used as the default form if desired.
-
-<geshi lang="nginx">
-    # nginx.conf
-    location /test {
-        content_by_lua '
-            local regex = [=[[0-9]+]=]
-            local m = ngx.re.match("hello, 1234", regex)
-            if m then ngx.say(m[0]) else ngx.say("not matched!") end
-        ';
-    }
-    # evaluates to "1234"
-</geshi>
-
-An alternative approach to escaping PCRE sequences is to ensure that Lua code is placed in external script files and executed using the various <code>*_by_lua_file</code> directives. 
-With this approach, the backslashes are only stripped by the Lua language parser and therefore only need to be escaped once each.
-
-<geshi lang="lua">
-    -- test.lua
-    local regex = "\\d+"
-    local m = ngx.re.match("hello, 1234", regex)
-    if m then ngx.say(m[0]) else ngx.say("not matched!") end
-    -- evaluates to "1234"
-</geshi>
-
-Within external script files, PCRE sequences presented as long-bracketed Lua string literals do not require modification. 
- 
-<geshi lang="lua">
-    -- test.lua
-    local regex = [[\d+]]
-    local m = ngx.re.match("hello, 1234", regex)
-    if m then ngx.say(m[0]) else ngx.say("not matched!") end
-    -- evaluates to "1234"
-</geshi>
-
-= Typical Uses =
-
-Just to name a few:
-
-* Mashup'ing and processing outputs of various nginx upstream outputs (proxy, drizzle, postgres, redis, memcached, and etc) in Lua,
-* doing arbitrarily complex access control and security checks in Lua before requests actually reach the upstream backends,
-* manipulating response headers in an arbitrary way (by Lua)
-* fetching backend information from external storage backends (like redis, memcached, mysql, postgresql) and use that information to choose which upstream backend to access on-the-fly,
-* coding up arbitrarily complex web applications in a content handler using synchronous but still non-blocking access to the database backends and other storage,
-* doing very complex URL dispatch in Lua at rewrite phase,
-* using Lua to implement advanced caching mechanism for Nginx's subrequests and arbitrary locations.
-
-The possibilities are unlimited as the module allows bringing together various elements within Nginx as well as exposing the power of the Lua language to the user. The module provides the full flexibility of scripting while offering performance levels comparable with native C language programs both in terms of CPU time as well as memory footprint. This is particularly the case when LuaJIT 2.0 is enabled. 
-
-Other scripting language implementations typically struggle to match this performance level.
-
-The Lua state (Lua VM instance) is shared across all the requests handled by a single nginx worker process to minimize memory use.
-
-On a ThinkPad T400 2.80 GHz laptop, the Hello World example readily achieves 28k req/sec using <code>http_load -p 10</code>. By contrast, Nginx + php-fpm 5.2.8 + Unix Domain Socket yields 6k req/sec and [http://nodejs.org/ Node.js] v0.6.1 yields 10.2k req/sec for their Hello World equivalents.
-
-= Nginx Compatibility =
-The latest module is compatible with the following versions of Nginx:
-
-* 1.3.x (last tested: 1.3.11)
-* 1.2.x (last tested: 1.2.7)
-* 1.1.x (last tested: 1.1.5)
-* 1.0.x (last tested: 1.0.15)
-* 0.9.x (last tested: 0.9.4)
-* 0.8.x >= 0.8.54 (last tested: 0.8.54)
-
-= Code Repository =
-
-The code repository of this project is hosted on github at [http://github.com/chaoslawful/lua-nginx-module chaoslawful/lua-nginx-module].
-
-= Installation =
+'''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*, init_by_lua*, ngx.timer.*, header_filter_by_lua*, body_filter_by_lua*''
 
-The [http://openresty.org ngx_openresty bundle] can be used to install Nginx, ngx_lua, either one of the standard Lua 5.1 interpreter or LuaJIT 2.0, as well as a package of powerful companion Nginx modules. The basic installation step is a simple <code>./configure --with-luajit && make && make install</code>.
+Identical to the standard Lua [http://www.lua.org/manual/5.1/manual.html#pdf-coroutine.status coroutine.status] API.
 
-Alternatively, ngx_lua can be manually compiled into Nginx:
+This API was first usable in the context of [[#init_by_lua|init_by_lua*]] since the <code>0.9.2</code>.
 
-# Install LuaJIT 2.0 (Recommended) or Lua 5.1 (Lua 5.2 is ''not'' supported yet). LuajIT can be downloaded from the [http://luajit.org/download.html the LuaJIT project website] and Lua 5.1, from the [http://www.lua.org/ Lua project website].  Some distribution package managers also distribute LuajIT and/or Lua.
-# Download the latest version of the ngx_devel_kit (NDK) module [http://github.com/simpl/ngx_devel_kit/tags HERE].
-# Download the latest version of ngx_lua [http://github.com/chaoslawful/lua-nginx-module/tags HERE].
-# Download the latest version of Nginx [http://nginx.org/ HERE] (See [[#Nginx Compatibility|Nginx Compatibility]])
-
-Build the source with this module:
-
-<geshi lang="bash">
-    wget 'http://nginx.org/download/nginx-1.2.7.tar.gz'
-    tar -xzvf nginx-1.2.7.tar.gz
-    cd nginx-1.2.7/
-
-    # tell nginx's build system where to find LuaJIT:
-    export LUAJIT_LIB=/path/to/luajit/lib
-    export LUAJIT_INC=/path/to/luajit/include/luajit-2.0
- 
-    # or tell where to find Lua if using Lua instead:
-    #export LUA_LIB=/path/to/lua/lib
-    #export LUA_INC=/path/to/lua/include
- 
-    # Here we assume Nginx is to be installed under /opt/nginx/.
-    ./configure --prefix=/opt/nginx \
-            --add-module=/path/to/ngx_devel_kit \
-            --add-module=/path/to/lua-nginx-module
- 
-    make -j2
-    make install
-</geshi>
-
-== Installation on Ubuntu 11.10 ==
-
-Note that it is recommended to use LuaJIT 2.0 instead of the standard Lua 5.1 interpreter where possible. 
-
-If the standard Lua 5.1 interpreter is required however, run the following command to install it from the Ubuntu repository:
-
-<geshi lang="bash">
-apt-get install -y lua5.1 liblua5.1-0 liblua5.1-0-dev
-</geshi>
-
-Everything should be installed correctly, except for one small tweak. 
-
-Library name <code>liblua.so</code> has been changed in liblua5.1 package, it only comes with <code>liblua5.1.so</code>, which needs to be symlinked to <code>/usr/lib</code> so it could be found during the configuration process.
-
-<geshi lang="bash">
-ln -s /usr/lib/x86_64-linux-gnu/liblua5.1.so /usr/lib/liblua.so
-</geshi>
-
-= Community =
-
-== English Mailing List ==
-
-The [https://groups.google.com/group/openresty-en openresty-en] mailing list is for English speakers.
-
-== Chinese Mailing List ==
-
-The [https://groups.google.com/group/openresty openresty] mailing list is for Chinese speakers.
-
-= Bugs and Patches =
-
-Please submit bug reports, wishlists, or patches by
-
-# creating a ticket on the [http://github.com/chaoslawful/lua-nginx-module/issues GitHub Issue Tracker],
-# or posting to the [[#Community|OpenResty community]].
-
-= TODO =
-
-== Short Term ==
-* review and apply Brian Akin's patch for the new directive <code>lua_socket_log_errors</code>.
-* review and apply Brian Akin's patch for the new <code>shdict:flush_expired()</code> API.
-* implement the SSL cosocket API.
-* review and apply Jader H. Silva's patch for <code>ngx.re.split()</code>.
-* review and apply vadim-pavlov's patch for [[#ngx.location.capture|ngx.location.capture]]'s <code>extra_headers</code> option
-* use <code>ngx_hash_t</code> to optimize the built-in header look-up process for [[#ngx.req.set_header|ngx.req.set_header]], [[#ngx.header.HEADER|ngx.header.HEADER]], and etc.
-* add configure options for different strategies of handling the cosocket connection exceeding in the pools.
-* add directives to run Lua codes when nginx stops.
-* add APIs to access cookies as key/value pairs.
-* add <code>ignore_resp_headers</code>, <code>ignore_resp_body</code>, and <code>ignore_resp</code> options to [[#ngx.location.capture|ngx.location.capture]] and [[#ngx.location.capture_multi|ngx.location.capture_multi]] methods, to allow micro performance tuning on the user side.
-* implement new directive <code>lua_ignore_client_abort</code>.
-
-== Longer Term ==
-* add lightweight thread API (i.e., the <code>ngx.thread</code> API) as demonstrated in [http://agentzh.org/misc/nginx/lua-thread2.lua this sample code].
-* add automatic Lua code time slicing support by yielding and resuming the Lua VM actively via Lua's debug hooks.
-* add <code>stat</code> mode similar to [http://httpd.apache.org/docs/2.3/mod/mod_lua.html mod_lua].
-
-= Changes =
-
-The changes of every release of this module can be obtained from the ngx_openresty bundle's change logs:
-
-http://openresty.org/#Changes
-
-= Test Suite =
-
-The following dependencies are required to run the test suite:
-
-* Nginx version >= 0.8.54
-
-* Perl modules:
-** test-nginx: http://github.com/agentzh/test-nginx 
-
-* Nginx modules:
-** echo-nginx-module: http://github.com/agentzh/echo-nginx-module 
-** drizzle-nginx-module: http://github.com/chaoslawful/drizzle-nginx-module 
-** rds-json-nginx-module: http://github.com/agentzh/rds-json-nginx-module 
-** set-misc-nginx-module: http://github.com/agentzh/set-misc-nginx-module 
-** headers-more-nginx-module: http://github.com/agentzh/headers-more-nginx-module 
-** memc-nginx-module: http://github.com/agentzh/memc-nginx-module 
-** srcache-nginx-module: http://github.com/agentzh/srcache-nginx-module 
-** ngx_auth_request: http://mdounin.ru/hg/ngx_http_auth_request_module/ 
-
-* C libraries:
-** yajl: https://github.com/lloyd/yajl 
-
-* Lua modules:
-** lua-yajl: https://github.com/brimworks/lua-yajl 
-*** Note: the compiled module has to be placed in '/usr/local/lib/lua/5.1/'
-
-* Applications:
-** mysql: create database 'ngx_test', grant all privileges to user 'ngx_test', password is 'ngx_test'
-** memcached
-
-The order in which these modules are added during configuration is important as the position of any filter module in the
-filtering chain determines the final output. The correct adding order is:
-
-# ngx_devel_kit
-# set-misc-nginx-module
-# ngx_http_auth_request_module
-# echo-nginx-module
-# memc-nginx-module
-# lua-nginx-module (i.e. this module)
-# headers-more-nginx-module
-# srcache-nginx-module
-# drizzle-nginx-module
-# rds-json-nginx-module
-
-= Copyright and License =
-
-This module is licensed under the BSD license.
-
-Copyright (C) 2009-2013, by Xiaozhe Wang (chaoslawful) <chaoslawful@gmail.com>.
-
-Copyright (C) 2009-2013, by Yichun "agentzh" Zhang (章亦春) <agentzh@gmail.com>, CloudFlare Inc.
-
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-
-* Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-
-* Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-= See Also =
-
-* [http://github.com/agentzh/lua-resty-memcached lua-resty-memcached] library based on ngx_lua cosocket.
-* [http://github.com/agentzh/lua-resty-redis lua-resty-redis] library based on ngx_lua cosocket.
-* [http://github.com/agentzh/lua-resty-mysql lua-resty-mysql] library based on ngx_lua cosocket.
-* [http://github.com/agentzh/lua-resty-upload lua-resty-upload] library based on ngx_lua cosocket.
-* [http://github.com/agentzh/lua-resty-dns lua-resty-dns] library based on ngx_lua cosocket.
-* [http://github.com/agentzh/lua-resty-string lua-resty-string] library based on [http://luajit.org/ext_ffi.html LuaJIT FFI].
-* [http://openresty.org/#RoutingMySQLQueriesBasedOnURIArgs Routing requests to different MySQL queries based on URI arguments]
-* [http://openresty.org/#DynamicRoutingBasedOnRedis Dynamic Routing Based on Redis and Lua]
-* [http://openresty.org/#UsingLuaRocks Using LuaRocks with ngx_lua]
-* [https://github.com/chaoslawful/lua-nginx-module/wiki/Introduction Introduction to ngx_lua]
-* [http://github.com/simpl/ngx_devel_kit ngx_devel_kit]
-* [[HttpEchoModule]]
-* [[HttpDrizzleModule]]
-* [http://github.com/FRiCKLE/ngx_postgres postgres-nginx-module]
-* [[HttpMemcModule]]
-* [http://openresty.org The ngx_openresty bundle]
-
-= Translations =
-* [[HttpLuaModuleZh|Chinese]] (still in progress)
+This API was first enabled in the <code>v0.6.0</code> release.
 

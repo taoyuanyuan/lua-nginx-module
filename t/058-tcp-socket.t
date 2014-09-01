@@ -1,11 +1,11 @@
 # vim:set ft= ts=4 sw=4 et fdm=marker:
 
 use lib 'lib';
-use Test::Nginx::Socket;
+use Test::Nginx::Socket::Lua;
 
 repeat_each(2);
 
-plan tests => repeat_each() * 95;
+plan tests => repeat_each() * 169;
 
 our $HtmlDir = html_dir;
 
@@ -15,7 +15,7 @@ $ENV{TEST_NGINX_RESOLVER} ||= '8.8.8.8';
 #log_level 'warn';
 log_level 'debug';
 
-#no_long_string();
+no_long_string();
 #no_diff();
 run_tests();
 
@@ -84,7 +84,7 @@ received: Connection: close
 received: 
 received: foo
 failed to receive a line: closed []
-close: nil closed
+close: 1 nil
 --- no_error_log
 [error]
 
@@ -202,12 +202,12 @@ attempt to send data on a closed socket:
 --- config
     server_tokens off;
     resolver $TEST_NGINX_RESOLVER;
-    resolver_timeout 1s;
+    resolver_timeout 3s;
     location /t {
         content_by_lua '
             local sock = ngx.socket.tcp()
             local port = 80
-            local ok, err = sock:connect("direct.agentzh.org", port)
+            local ok, err = sock:connect("agentzh.org", port)
             if not ok then
                 ngx.say("failed to connect: ", err)
                 return
@@ -250,9 +250,10 @@ GET /t
 connected: 1
 request sent: 56
 first line received: HTTP/1.1 200 OK
-second line received: Server: ngx_openresty
+second line received: Server: openresty
 --- no_error_log
 [error]
+--- timeout: 10
 
 
 
@@ -294,7 +295,7 @@ qr/connect\(\) failed \(\d+: Connection refused\)/
     lua_socket_connect_timeout 100ms;
     lua_socket_send_timeout 100ms;
     lua_socket_read_timeout 100ms;
-    resolver_timeout 1s;
+    resolver_timeout 3s;
     location /test {
         content_by_lua '
             local sock = ngx.socket.tcp()
@@ -322,6 +323,7 @@ receive: nil closed
 close: nil closed
 --- error_log
 lua tcp socket connect timed out
+--- timeout: 10
 
 
 
@@ -362,7 +364,7 @@ connected: 1
 --- config
     server_tokens off;
     resolver $TEST_NGINX_RESOLVER;
-    resolver_timeout 1s;
+    resolver_timeout 3s;
     location /t {
         content_by_lua '
             local sock = ngx.socket.tcp()
@@ -395,7 +397,7 @@ connected: nil
 failed to send request: closed$
 --- error_log
 attempt to send data on a closed socket
---- timeout: 5
+--- timeout: 10
 
 
 
@@ -501,7 +503,7 @@ received: Connection: close
 received: 
 received: foo
 failed to receive a line: closed
-close: nil closed
+close: 1 nil
 --- no_error_log
 [error]
 
@@ -568,7 +570,7 @@ Connection: close\r
 foo
 
 err: nil
-close: nil closed
+close: 1 nil
 "
 --- no_error_log
 [error]
@@ -647,7 +649,7 @@ Connection: close\r
 foo
 
 err: nil
-close: nil closed
+close: 1 nil
 "
 --- no_error_log
 [error]
@@ -722,7 +724,7 @@ Con][nection: c][lose\r
 \r
 fo]failed to receive a line: closed [o
 ]
-close: nil closed
+close: 1 nil
 "
 --- no_error_log
 [error]
@@ -798,7 +800,7 @@ Con][nection: c][lose\r
 \r
 fo]failed to receive a line: closed [o
 ]
-close: nil closed
+close: 1 nil
 "
 --- no_error_log
 [error]
@@ -868,7 +870,7 @@ received: Connection: close
 received: 
 received: foo
 failed to receive a line: closed []
-close: nil closed
+close: 1 nil
 --- no_error_log
 [error]
 
@@ -935,7 +937,7 @@ received: Connection: close
 received: 
 received: foo
 failed to receive a line: closed []
-close: nil closed
+close: 1 nil
 --- no_error_log
 [error]
 
@@ -1047,7 +1049,7 @@ Con][nection: c][lose\r
 \r
 fo]failed to receive a line: closed [o
 ]
-close: nil closed
+close: 1 nil
 "
 --- no_error_log
 [error]
@@ -1329,6 +1331,7 @@ received: OK
 lua reuse socket upstream ctx
 --- no_error_log
 [error]
+--- SKIP
 
 
 
@@ -1555,7 +1558,7 @@ received: Connection: close
 received: 
 received: foo
 failed to receive a line: closed []
-close: nil closed
+close: 1 nil
 --- no_error_log
 [error]
 
@@ -1987,6 +1990,7 @@ send(""): 0
 close: 1 nil
 --- no_error_log
 [error]
+[alert]
 
 
 
@@ -2074,7 +2078,7 @@ F(ngx_http_lua_socket_resolve_handler) {
     println("lua socket resolve handler")
 }
 
-F(ngx_http_lua_socket_tcp_connect_retval_handler) {
+F(ngx_http_lua_socket_tcp_conn_retval_handler) {
     println("lua socket tcp connect retval handler")
 }
 
@@ -2090,5 +2094,1129 @@ lua socket tcp connect retval handler
 run posted requests
 
 --- no_error_log
+[error]
+--- timeout: 10
+
+
+
+=== TEST 35: connection refused (tcp) - lua_socket_log_errors off
+--- config
+    location /test {
+        lua_socket_log_errors off;
+        content_by_lua '
+            local sock = ngx.socket.tcp()
+            local ok, err = sock:connect("127.0.0.1", 16787)
+            ngx.say("connect: ", ok, " ", err)
+
+            local bytes
+            bytes, err = sock:send("hello")
+            ngx.say("send: ", bytes, " ", err)
+
+            local line
+            line, err = sock:receive()
+            ngx.say("receive: ", line, " ", err)
+
+            ok, err = sock:close()
+            ngx.say("close: ", ok, " ", err)
+        ';
+    }
+--- request
+    GET /test
+--- response_body
+connect: nil connection refused
+send: nil closed
+receive: nil closed
+close: nil closed
+--- no_error_log eval
+[qr/connect\(\) failed \(\d+: Connection refused\)/]
+
+
+
+=== TEST 36: reread after a read time out happen (receive -> receive)
+--- config
+    server_tokens off;
+    lua_socket_read_timeout 100ms;
+    resolver $TEST_NGINX_RESOLVER;
+    location /t {
+        content_by_lua '
+            local sock = ngx.socket.tcp()
+            local ok, err = sock:connect("127.0.0.1", $TEST_NGINX_MEMCACHED_PORT)
+            if not ok then
+                ngx.say("failed to connect: ", err)
+                return
+            end
+
+            ngx.say("connected: ", ok)
+
+            local line
+            line, err = sock:receive()
+            if line then
+                ngx.say("received: ", line)
+            else
+                ngx.say("failed to receive: ", err)
+
+                line, err = sock:receive()
+                if not line then
+                    ngx.say("failed to receive: ", err)
+                end
+            end
+        ';
+    }
+--- request
+GET /t
+--- response_body
+connected: 1
+failed to receive: timeout
+failed to receive: timeout
+--- error_log
+lua tcp socket read timeout: 100
+lua tcp socket connect timeout: 60000
+lua tcp socket read timed out
+
+
+
+=== TEST 37: successful reread after a read time out happen (receive -> receive)
+--- config
+    server_tokens off;
+    resolver $TEST_NGINX_RESOLVER;
+    location /t {
+        content_by_lua '
+            local sock = ngx.socket.tcp()
+            local ok, err = sock:connect("127.0.0.1", ngx.var.server_port)
+            if not ok then
+                ngx.say("failed to connect: ", err)
+                return
+            end
+
+            local bytes, err = sock:send("GET /back HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n")
+            if not bytes then
+                ngx.say("failed to send: ", err)
+                return
+            end
+
+            local reader = sock:receiveuntil("\\r\\n\\r\\n")
+            local header, err = reader()
+            if not header then
+                ngx.say("failed to read the response header: ", err)
+                return
+            end
+
+            sock:settimeout(100)
+
+            local data, err, partial = sock:receive(100)
+            if data then
+                ngx.say("received: ", data)
+            else
+                ngx.say("failed to receive: ", err, ", partial: ", partial)
+
+                sock:settimeout(123)
+                ngx.sleep(0.1)
+                local line, err = sock:receive()
+                if not line then
+                    ngx.say("failed to receive: ", err)
+                    return
+                end
+                ngx.say("received: ", line)
+
+                local line, err = sock:receive()
+                if not line then
+                    ngx.say("failed to receive: ", err)
+                    return
+                end
+                ngx.say("received: ", line)
+            end
+        ';
+    }
+
+    location /back {
+        content_by_lua '
+            ngx.print("hi")
+            ngx.flush(true)
+            ngx.sleep(0.2)
+            ngx.print("world")
+        ';
+    }
+--- request
+GET /t
+--- response_body eval
+"failed to receive: timeout, partial: 2\r
+hi\r
+
+received: 5
+received: world
+"
+--- error_log
+lua tcp socket read timed out
+--- no_error_log
+[alert]
+
+
+
+=== TEST 38: successful reread after a read time out happen (receive -> receiveuntil)
+--- config
+    server_tokens off;
+    resolver $TEST_NGINX_RESOLVER;
+    location /t {
+        content_by_lua '
+            local sock = ngx.socket.tcp()
+            local ok, err = sock:connect("127.0.0.1", ngx.var.server_port)
+            if not ok then
+                ngx.say("failed to connect: ", err)
+                return
+            end
+
+            local bytes, err = sock:send("GET /back HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n")
+            if not bytes then
+                ngx.say("failed to send: ", err)
+                return
+            end
+
+            local reader = sock:receiveuntil("\\r\\n\\r\\n")
+            local header, err = reader()
+            if not header then
+                ngx.say("failed to read the response header: ", err)
+                return
+            end
+
+            sock:settimeout(100)
+
+            local data, err, partial = sock:receive(100)
+            if data then
+                ngx.say("received: ", data)
+            else
+                ngx.say("failed to receive: ", err, ", partial: ", partial)
+
+                ngx.sleep(0.1)
+
+                sock:settimeout(123)
+                local reader = sock:receiveuntil("\\r\\n")
+
+                local line, err = reader()
+                if not line then
+                    ngx.say("failed to receive: ", err)
+                    return
+                end
+                ngx.say("received: ", line)
+
+                local line, err = reader()
+                if not line then
+                    ngx.say("failed to receive: ", err)
+                    return
+                end
+                ngx.say("received: ", line)
+            end
+        ';
+    }
+
+    location /back {
+        content_by_lua '
+            ngx.print("hi")
+            ngx.flush(true)
+            ngx.sleep(0.2)
+            ngx.print("world")
+        ';
+    }
+--- request
+GET /t
+--- response_body eval
+"failed to receive: timeout, partial: 2\r
+hi\r
+
+received: 5
+received: world
+"
+--- error_log
+lua tcp socket read timed out
+--- no_error_log
+[alert]
+
+
+
+=== TEST 39: successful reread after a read time out happen (receiveuntil -> receiveuntil)
+--- config
+    server_tokens off;
+    resolver $TEST_NGINX_RESOLVER;
+    location /t {
+        content_by_lua '
+            local sock = ngx.socket.tcp()
+            local ok, err = sock:connect("127.0.0.1", ngx.var.server_port)
+            if not ok then
+                ngx.say("failed to connect: ", err)
+                return
+            end
+
+            local bytes, err = sock:send("GET /back HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n")
+            if not bytes then
+                ngx.say("failed to send: ", err)
+                return
+            end
+
+            local reader = sock:receiveuntil("\\r\\n\\r\\n")
+            local header, err = reader()
+            if not header then
+                ngx.say("failed to read the response header: ", err)
+                return
+            end
+
+            sock:settimeout(100)
+
+            local reader = sock:receiveuntil("no-such-terminator")
+            local data, err, partial = reader()
+            if data then
+                ngx.say("received: ", data)
+            else
+                ngx.say("failed to receive: ", err, ", partial: ", partial)
+
+                ngx.sleep(0.1)
+
+                sock:settimeout(123)
+
+                local reader = sock:receiveuntil("\\r\\n")
+
+                local line, err = reader()
+                if not line then
+                    ngx.say("failed to receive: ", err)
+                    return
+                end
+                ngx.say("received: ", line)
+
+                local line, err = reader()
+                if not line then
+                    ngx.say("failed to receive: ", err)
+                    return
+                end
+                ngx.say("received: ", line)
+            end
+        ';
+    }
+
+    location /back {
+        content_by_lua '
+            ngx.print("hi")
+            ngx.flush(true)
+            ngx.sleep(0.2)
+            ngx.print("world")
+        ';
+    }
+--- request
+GET /t
+--- response_body eval
+"failed to receive: timeout, partial: 2\r
+hi\r
+
+received: 5
+received: world
+"
+--- error_log
+lua tcp socket read timed out
+--- no_error_log
+[alert]
+
+
+
+=== TEST 40: successful reread after a read time out happen (receiveuntil -> receive)
+--- config
+    server_tokens off;
+    resolver $TEST_NGINX_RESOLVER;
+    location /t {
+        content_by_lua '
+            local sock = ngx.socket.tcp()
+            local ok, err = sock:connect("127.0.0.1", ngx.var.server_port)
+            if not ok then
+                ngx.say("failed to connect: ", err)
+                return
+            end
+
+            local bytes, err = sock:send("GET /back HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n")
+            if not bytes then
+                ngx.say("failed to send: ", err)
+                return
+            end
+
+            local reader = sock:receiveuntil("\\r\\n\\r\\n")
+            local header, err = reader()
+            if not header then
+                ngx.say("failed to read the response header: ", err)
+                return
+            end
+
+            sock:settimeout(100)
+
+            local reader = sock:receiveuntil("no-such-terminator")
+            local data, err, partial = reader()
+            if data then
+                ngx.say("received: ", data)
+            else
+                ngx.say("failed to receive: ", err, ", partial: ", partial)
+
+                ngx.sleep(0.1)
+
+                sock:settimeout(123)
+
+                local line, err = sock:receive()
+                if not line then
+                    ngx.say("failed to receive: ", err)
+                    return
+                end
+                ngx.say("received: ", line)
+
+                local line, err = sock:receive()
+                if not line then
+                    ngx.say("failed to receive: ", err)
+                    return
+                end
+                ngx.say("received: ", line)
+            end
+        ';
+    }
+
+    location /back {
+        content_by_lua '
+            ngx.print("hi")
+            ngx.flush(true)
+            ngx.sleep(0.2)
+            ngx.print("world")
+        ';
+    }
+--- request
+GET /t
+--- response_body eval
+"failed to receive: timeout, partial: 2\r
+hi\r
+
+received: 5
+received: world
+"
+--- error_log
+lua tcp socket read timed out
+--- no_error_log
+[alert]
+
+
+
+=== TEST 41: receive(0)
+--- config
+    server_tokens off;
+    location /t {
+        #set $port 5000;
+        set $port $TEST_NGINX_SERVER_PORT;
+
+        content_by_lua '
+            local sock = ngx.socket.tcp()
+            local port = ngx.var.port
+            local ok, err = sock:connect("127.0.0.1", port)
+            if not ok then
+                ngx.say("failed to connect: ", err)
+                return
+            end
+
+            ngx.say("connected: ", ok)
+
+            local data, err = sock:receive(0)
+            if not data then
+                ngx.say("failed to receive: ", err)
+                return
+            end
+
+            ngx.say("received: ", data)
+
+            ok, err = sock:close()
+            ngx.say("close: ", ok, " ", err)
+        ';
+    }
+
+    location /foo {
+        content_by_lua 'ngx.say("foo")';
+        more_clear_headers Date;
+    }
+
+--- request
+GET /t
+--- response_body
+connected: 1
+received: 
+close: 1 nil
+--- no_error_log
+[error]
+
+
+
+=== TEST 42: empty options table
+--- config
+    server_tokens off;
+    location /t {
+        #set $port 5000;
+        set $port $TEST_NGINX_SERVER_PORT;
+
+        content_by_lua '
+            local sock = ngx.socket.tcp()
+            local port = ngx.var.port
+            local ok, err = sock:connect("127.0.0.1", port, {})
+            if not ok then
+                ngx.say("failed to connect: ", err)
+                return
+            end
+
+            ngx.say("connected: ", ok)
+
+            ok, err = sock:close()
+            ngx.say("close: ", ok, " ", err)
+        ';
+    }
+
+    location /foo {
+        content_by_lua 'ngx.say("foo")';
+        more_clear_headers Date;
+    }
+
+--- request
+GET /t
+--- response_body
+connected: 1
+close: 1 nil
+--- no_error_log
+[error]
+
+
+
+=== TEST 43: u->coctx left over bug
+--- config
+    server_tokens off;
+    location = /t {
+        #set $port 5000;
+        set $port $TEST_NGINX_SERVER_PORT;
+
+        content_by_lua '
+            local sock = ngx.socket.tcp()
+            local port = ngx.var.port
+            local ok, err = sock:connect("127.0.0.1", port)
+            if not ok then
+                ngx.say("failed to connect: ", err)
+                return
+            end
+
+            ngx.say("connected: ", ok)
+
+            local req = "GET /foo HTTP/1.0\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n"
+            -- req = "OK"
+
+            local bytes, err = sock:send(req)
+            if not bytes then
+                ngx.say("failed to send request: ", err)
+                return
+            end
+
+            ngx.say("request sent: ", bytes)
+
+            local ready = false
+            local fatal = false
+
+            function f()
+                local line, err, part = sock:receive()
+                if not line then
+                    ngx.say("failed to receive the 1st line: ", err, " [", part, "]")
+                    fatal = true
+                    return
+                end
+                ready = true
+                ngx.sleep(1)
+            end
+
+            local st = ngx.thread.spawn(f)
+            while true do
+                if fatal then
+                    return
+                end
+
+                if not ready then
+                    ngx.sleep(0.01)
+                else
+                    break
+                end
+            end
+
+            while true do
+                local line, err, part = sock:receive()
+                if line then
+                    -- ngx.say("received: ", line)
+
+                else
+                    -- ngx.say("failed to receive a line: ", err, " [", part, "]")
+                    break
+                end
+            end
+
+            ok, err = sock:close()
+            ngx.say("close: ", ok, " ", err)
+            ngx.exit(0)
+        ';
+    }
+
+    location /foo {
+        content_by_lua 'ngx.sleep(0.1) ngx.say("foo")';
+        more_clear_headers Date;
+    }
+
+--- request
+GET /t
+--- response_body
+connected: 1
+request sent: 57
+close: 1 nil
+--- no_error_log
+[error]
+--- error_log
+lua clean up the timer for pending ngx.sleep
+
+
+
+=== TEST 44: bad request tries to connect
+--- http_config eval
+    "lua_package_path '$::HtmlDir/?.lua;./?.lua';"
+--- config
+    server_tokens off;
+    location = /main {
+        echo_location /t?reset=1;
+        echo_location /t;
+    }
+    location /t {
+        #set $port 5000;
+        set $port $TEST_NGINX_MEMCACHED_PORT;
+
+        content_by_lua '
+            local test = require "test"
+            if ngx.var.arg_reset then
+                test.new_sock()
+            end
+            local sock = test.get_sock()
+            local ok, err = sock:connect("127.0.0.1", ngx.var.port)
+            if not ok then
+                ngx.say("failed to connect: ", err)
+            else
+                ngx.say("connected")
+            end
+        ';
+    }
+--- user_files
+>>> test.lua
+module("test", package.seeall)
+
+local sock
+
+function new_sock()
+    sock = ngx.socket.tcp()
+end
+
+function get_sock()
+    return sock
+end
+--- request
+GET /main
+--- response_body_like eval
+qr/^connected
+<html.*?500 Internal Server Error/ms
+
+--- error_log
+runtime error: content_by_lua:7: bad request
+--- no_error_log
+[alert]
+
+
+
+=== TEST 45: bad request tries to receive
+--- http_config eval
+    "lua_package_path '$::HtmlDir/?.lua;./?.lua';"
+--- config
+    server_tokens off;
+    location = /main {
+        echo_location /t?reset=1;
+        echo_location /t;
+    }
+    location /t {
+        #set $port 5000;
+        set $port $TEST_NGINX_MEMCACHED_PORT;
+
+        content_by_lua '
+            local test = require "test"
+            if ngx.var.arg_reset then
+                local sock = test.new_sock()
+                local ok, err = sock:connect("127.0.0.1", ngx.var.port)
+                if not ok then
+                    ngx.say("failed to connect: ", err)
+                else
+                    ngx.say("connected")
+                end
+                return
+            end
+            local sock = test.get_sock()
+            sock:receive()
+        ';
+    }
+--- user_files
+>>> test.lua
+module("test", package.seeall)
+
+local sock
+
+function new_sock()
+    sock = ngx.socket.tcp()
+    return sock
+end
+
+function get_sock()
+    return sock
+end
+--- request
+GET /main
+--- response_body_like eval
+qr/^connected
+<html.*?500 Internal Server Error/ms
+
+--- error_log
+runtime error: content_by_lua:14: bad request
+--- no_error_log
+[alert]
+
+
+
+=== TEST 46: bad request tries to send
+--- http_config eval
+    "lua_package_path '$::HtmlDir/?.lua;./?.lua';"
+--- config
+    server_tokens off;
+    location = /main {
+        echo_location /t?reset=1;
+        echo_location /t;
+    }
+    location /t {
+        #set $port 5000;
+        set $port $TEST_NGINX_MEMCACHED_PORT;
+
+        content_by_lua '
+            local test = require "test"
+            if ngx.var.arg_reset then
+                local sock = test.new_sock()
+                local ok, err = sock:connect("127.0.0.1", ngx.var.port)
+                if not ok then
+                    ngx.say("failed to connect: ", err)
+                else
+                    ngx.say("connected")
+                end
+                return
+            end
+            local sock = test.get_sock()
+            sock:send("a")
+        ';
+    }
+--- user_files
+>>> test.lua
+module("test", package.seeall)
+
+local sock
+
+function new_sock()
+    sock = ngx.socket.tcp()
+    return sock
+end
+
+function get_sock()
+    return sock
+end
+--- request
+GET /main
+--- response_body_like eval
+qr/^connected
+<html.*?500 Internal Server Error/ms
+
+--- error_log
+runtime error: content_by_lua:14: bad request
+--- no_error_log
+[alert]
+
+
+
+=== TEST 47: bad request tries to close
+--- http_config eval
+    "lua_package_path '$::HtmlDir/?.lua;./?.lua';"
+--- config
+    server_tokens off;
+    location = /main {
+        echo_location /t?reset=1;
+        echo_location /t;
+    }
+    location /t {
+        #set $port 5000;
+        set $port $TEST_NGINX_MEMCACHED_PORT;
+
+        content_by_lua '
+            local test = require "test"
+            if ngx.var.arg_reset then
+                local sock = test.new_sock()
+                local ok, err = sock:connect("127.0.0.1", ngx.var.port)
+                if not ok then
+                    ngx.say("failed to connect: ", err)
+                else
+                    ngx.say("connected")
+                end
+                return
+            end
+            local sock = test.get_sock()
+            sock:close()
+        ';
+    }
+--- user_files
+>>> test.lua
+module("test", package.seeall)
+
+local sock
+
+function new_sock()
+    sock = ngx.socket.tcp()
+    return sock
+end
+
+function get_sock()
+    return sock
+end
+--- request
+GET /main
+--- response_body_like eval
+qr/^connected
+<html.*?500 Internal Server Error/ms
+
+--- error_log
+runtime error: content_by_lua:14: bad request
+--- no_error_log
+[alert]
+
+
+
+=== TEST 48: bad request tries to set keepalive
+--- http_config eval
+    "lua_package_path '$::HtmlDir/?.lua;./?.lua';"
+--- config
+    server_tokens off;
+    location = /main {
+        echo_location /t?reset=1;
+        echo_location /t;
+    }
+    location /t {
+        #set $port 5000;
+        set $port $TEST_NGINX_MEMCACHED_PORT;
+
+        content_by_lua '
+            local test = require "test"
+            if ngx.var.arg_reset then
+                local sock = test.new_sock()
+                local ok, err = sock:connect("127.0.0.1", ngx.var.port)
+                if not ok then
+                    ngx.say("failed to connect: ", err)
+                else
+                    ngx.say("connected")
+                end
+                return
+            end
+            local sock = test.get_sock()
+            sock:setkeepalive()
+        ';
+    }
+--- user_files
+>>> test.lua
+module("test", package.seeall)
+
+local sock
+
+function new_sock()
+    sock = ngx.socket.tcp()
+    return sock
+end
+
+function get_sock()
+    return sock
+end
+--- request
+GET /main
+--- response_body_like eval
+qr/^connected
+<html.*?500 Internal Server Error/ms
+
+--- error_log
+runtime error: content_by_lua:14: bad request
+--- no_error_log
+[alert]
+
+
+
+=== TEST 49: bad request tries to receiveuntil
+--- http_config eval
+    "lua_package_path '$::HtmlDir/?.lua;./?.lua';"
+--- config
+    server_tokens off;
+    location = /main {
+        echo_location /t?reset=1;
+        echo_location /t;
+    }
+    location /t {
+        #set $port 5000;
+        set $port $TEST_NGINX_MEMCACHED_PORT;
+
+        content_by_lua '
+            local test = require "test"
+            if ngx.var.arg_reset then
+                local sock = test.new_sock()
+                local ok, err = sock:connect("127.0.0.1", ngx.var.port)
+                if not ok then
+                    ngx.say("failed to connect: ", err)
+                else
+                    ngx.say("connected")
+                end
+                return
+            end
+            local sock = test.get_sock()
+            local it, err = sock:receiveuntil("abc")
+            if it then
+                it()
+            end
+        ';
+    }
+--- user_files
+>>> test.lua
+module("test", package.seeall)
+
+local sock
+
+function new_sock()
+    sock = ngx.socket.tcp()
+    return sock
+end
+
+function get_sock()
+    return sock
+end
+--- request
+GET /main
+--- response_body_like eval
+qr/^connected
+<html.*?500 Internal Server Error/ms
+
+--- error_log
+runtime error: content_by_lua:16: bad request
+--- no_error_log
+[alert]
+
+
+
+=== TEST 50: cosocket resolving aborted by coroutine yielding failures (require)
+--- http_config
+    lua_package_path "$prefix/html/?.lua;;";
+    resolver 8.8.8.8;
+
+--- config
+    location = /t {
+        content_by_lua '
+            package.loaded.myfoo = nil
+            require "myfoo"
+        ';
+    }
+--- request
+    GET /t
+--- user_files
+>>> myfoo.lua
+local sock = ngx.socket.tcp()
+local ok, err = sock:connect("agentzh.org")
+if not ok then
+    ngx.log(ngx.ERR, "failed to connect: ", err)
+    return
+end
+
+--- response_body_like: 500 Internal Server Error
+--- wait: 0.3
+--- error_code: 500
+--- error_log
+resolve name done
+runtime error: attempt to yield across C-call boundary
+--- no_error_log
+[alert]
+
+
+
+=== TEST 51: cosocket resolving aborted by coroutine yielding failures (xpcall err)
+--- http_config
+    lua_package_path "$prefix/html/?.lua;;";
+    resolver 8.8.8.8;
+
+--- config
+    location = /t {
+        content_by_lua '
+            local function f()
+                return error(1)
+            end
+            local function err()
+                local sock = ngx.socket.tcp()
+                local ok, err = sock:connect("agentzh.org")
+                if not ok then
+                    ngx.log(ngx.ERR, "failed to connect: ", err)
+                    return
+                end
+            end
+            xpcall(f, err)
+            ngx.say("ok")
+        ';
+    }
+--- request
+    GET /t
+--- response_body
+ok
+--- wait: 0.3
+--- error_log
+resolve name done
+--- no_error_log
+[error]
+[alert]
+could not cancel
+
+
+
+=== TEST 52: tcp_nodelay on
+--- config
+    tcp_nodelay on;
+    server_tokens off;
+    location /t {
+        #set $port 5000;
+        set $port $TEST_NGINX_SERVER_PORT;
+
+        content_by_lua '
+            local sock = ngx.socket.tcp()
+            local port = ngx.var.port
+            local ok, err = sock:connect("127.0.0.1", port)
+            if not ok then
+                ngx.say("failed to connect: ", err)
+                return
+            end
+
+            ngx.say("connected: ", ok)
+
+            local req = "GET /foo HTTP/1.0\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n"
+            -- req = "OK"
+
+            local bytes, err = sock:send(req)
+            if not bytes then
+                ngx.say("failed to send request: ", err)
+                return
+            end
+
+            ngx.say("request sent: ", bytes)
+
+            while true do
+                local line, err, part = sock:receive()
+                if line then
+                    ngx.say("received: ", line)
+
+                else
+                    ngx.say("failed to receive a line: ", err, " [", part, "]")
+                    break
+                end
+            end
+
+            ok, err = sock:close()
+            ngx.say("close: ", ok, " ", err)
+        ';
+    }
+
+    location /foo {
+        content_by_lua 'ngx.say("foo")';
+        more_clear_headers Date;
+    }
+
+--- request
+GET /t
+
+--- response_body
+connected: 1
+request sent: 57
+received: HTTP/1.1 200 OK
+received: Server: nginx
+received: Content-Type: text/plain
+received: Content-Length: 4
+received: Connection: close
+received: 
+received: foo
+failed to receive a line: closed []
+close: 1 nil
+--- error_log
+lua socket tcp_nodelay
+--- no_error_log
+[error]
+
+
+
+=== TEST 53: tcp_nodelay off
+--- config
+    tcp_nodelay off;
+    server_tokens off;
+    location /t {
+        #set $port 5000;
+        set $port $TEST_NGINX_SERVER_PORT;
+
+        content_by_lua '
+            local sock = ngx.socket.tcp()
+            local port = ngx.var.port
+            local ok, err = sock:connect("127.0.0.1", port)
+            if not ok then
+                ngx.say("failed to connect: ", err)
+                return
+            end
+
+            ngx.say("connected: ", ok)
+
+            local req = "GET /foo HTTP/1.0\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n"
+            -- req = "OK"
+
+            local bytes, err = sock:send(req)
+            if not bytes then
+                ngx.say("failed to send request: ", err)
+                return
+            end
+
+            ngx.say("request sent: ", bytes)
+
+            while true do
+                local line, err, part = sock:receive()
+                if line then
+                    ngx.say("received: ", line)
+
+                else
+                    ngx.say("failed to receive a line: ", err, " [", part, "]")
+                    break
+                end
+            end
+
+            ok, err = sock:close()
+            ngx.say("close: ", ok, " ", err)
+        ';
+    }
+
+    location /foo {
+        content_by_lua 'ngx.say("foo")';
+        more_clear_headers Date;
+    }
+
+--- request
+GET /t
+
+--- response_body
+connected: 1
+request sent: 57
+received: HTTP/1.1 200 OK
+received: Server: nginx
+received: Content-Type: text/plain
+received: Content-Length: 4
+received: Connection: close
+received: 
+received: foo
+failed to receive a line: closed []
+close: 1 nil
+--- no_error_log
+lua socket tcp_nodelay
 [error]
 

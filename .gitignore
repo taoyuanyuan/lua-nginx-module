@@ -128,7 +128,7 @@ src/logby.[ch]
 src/sleep.[ch]
 a.patch
 all
-build1[0-3]
+build1[0-9]
 g
 buildroot/
 src/headerfilterby.[ch]
@@ -142,6 +142,7 @@ ERRORS
 src/bodyfilterby.[ch]
 src/tcp.[ch]
 src/initby.[ch]
+src/initworkerby.[ch]
 src/socket.[ch]
 src/udp.[ch]
 src/method.[ch]
@@ -149,9 +150,15 @@ tre
 src/phase.[ch]
 src/probe.h
 src/uthread.[ch]
+src/timer.[ch]
+src/config.[ch]
+src/worker.[ch]
 *.plist
 lua
+ttimer
 Makefile
 tsubreq
 tthread
 addr2line
+hup
+theaders

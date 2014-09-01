@@ -60,6 +60,33 @@ ngx_http_lua_inject_http_consts(lua_State *L)
 
     lua_pushinteger(L, NGX_HTTP_OPTIONS);
     lua_setfield(L, -2, "HTTP_OPTIONS");
+
+    lua_pushinteger(L, NGX_HTTP_MKCOL);
+    lua_setfield(L, -2, "HTTP_MKCOL");
+
+    lua_pushinteger(L, NGX_HTTP_COPY);
+    lua_setfield(L, -2, "HTTP_COPY");
+
+    lua_pushinteger(L, NGX_HTTP_MOVE);
+    lua_setfield(L, -2, "HTTP_MOVE");
+
+    lua_pushinteger(L, NGX_HTTP_PROPFIND);
+    lua_setfield(L, -2, "HTTP_PROPFIND");
+
+    lua_pushinteger(L, NGX_HTTP_PROPPATCH);
+    lua_setfield(L, -2, "HTTP_PROPPATCH");
+
+    lua_pushinteger(L, NGX_HTTP_LOCK);
+    lua_setfield(L, -2, "HTTP_LOCK");
+
+    lua_pushinteger(L, NGX_HTTP_UNLOCK);
+    lua_setfield(L, -2, "HTTP_UNLOCK");
+
+    lua_pushinteger(L, NGX_HTTP_PATCH);
+    lua_setfield(L, -2, "HTTP_PATCH");
+
+    lua_pushinteger(L, NGX_HTTP_TRACE);
+    lua_setfield(L, -2, "HTTP_TRACE");
     /* }}} */
 
     lua_pushinteger(L, NGX_HTTP_OK);
@@ -107,13 +134,13 @@ ngx_http_lua_inject_http_consts(lua_State *L)
     lua_pushinteger(L, NGX_HTTP_INTERNAL_SERVER_ERROR);
     lua_setfield(L, -2, "HTTP_INTERNAL_SERVER_ERROR");
 
-    lua_pushinteger(L, 501);
+    lua_pushinteger(L, NGX_HTTP_NOT_IMPLEMENTED);
     lua_setfield(L, -2, "HTTP_METHOD_NOT_IMPLEMENTED");
 
     lua_pushinteger(L, NGX_HTTP_SERVICE_UNAVAILABLE);
     lua_setfield(L, -2, "HTTP_SERVICE_UNAVAILABLE");
 
-    lua_pushinteger(L, 504);
+    lua_pushinteger(L, NGX_HTTP_GATEWAY_TIME_OUT);
     lua_setfield(L, -2, "HTTP_GATEWAY_TIMEOUT");
     /* }}} */
 }

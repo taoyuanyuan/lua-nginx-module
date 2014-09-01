@@ -49,13 +49,8 @@ ngx_http_lua_ngx_echo(lua_State *L, unsigned newline)
     int                          nargs;
     int                          type;
     const char                  *msg;
-    ngx_buf_tag_t                tag;
 
-    lua_pushlightuserdata(L, &ngx_http_lua_request_key);
-    lua_rawget(L, LUA_GLOBALSINDEX);
-    r = lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
+    r = ngx_http_lua_get_req(L);
     if (r == NULL) {
         return luaL_error(L, "no request object found");
     }
@@ -70,12 +65,22 @@ ngx_http_lua_ngx_echo(lua_State *L, unsigned newline)
                                | NGX_HTTP_LUA_CONTEXT_ACCESS
                                | NGX_HTTP_LUA_CONTEXT_CONTENT);
 
+    if (ctx->acquired_raw_req_socket) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "raw request socket acquired");
+        return 2;
+    }
+
     if (r->header_only) {
-        return 0;
+        lua_pushnil(L);
+        lua_pushliteral(L, "header only");
+        return 2;
     }
 
     if (ctx->eof) {
-        return luaL_error(L, "seen eof already");
+        lua_pushnil(L);
+        lua_pushliteral(L, "seen eof");
+        return 2;
     }
 
     nargs = lua_gettop(L);
@@ -142,16 +147,15 @@ ngx_http_lua_ngx_echo(lua_State *L, unsigned newline)
 
     if (size == 0) {
         /* do nothing for empty strings */
-        return 0;
+        lua_pushinteger(L, 1);
+        return 1;
     }
 
-    tag = (ngx_buf_tag_t) &ngx_http_lua_module;
-
-    cl = ngx_http_lua_chains_get_free_buf(r->connection->log, r->pool,
-                                          &ctx->free_bufs, size, tag);
+    cl = ngx_http_lua_chain_get_free_buf(r->connection->log, r->pool,
+                                         &ctx->free_bufs, size);
 
     if (cl == NULL) {
-        return luaL_error(L, "out of memory");
+        return luaL_error(L, "no memory");
     }
 
     b = cl->buf;
@@ -220,11 +224,13 @@ ngx_http_lua_ngx_echo(lua_State *L, unsigned newline)
     rc = ngx_http_lua_send_chain_link(r, ctx, cl);
 
     if (rc == NGX_ERROR || rc >= NGX_HTTP_SPECIAL_RESPONSE) {
-        return luaL_error(L, "failed to send data through the output filters");
+        lua_pushnil(L);
+        lua_pushliteral(L, "nginx output filter error");
+        return 2;
     }
 
     dd("downstream write: %d, buf len: %d", (int) rc,
-            (int) (b->last - b->pos));
+       (int) (b->last - b->pos));
 
     if (!ctx->out) {
 #if nginx_version >= 1001004
@@ -232,14 +238,16 @@ ngx_http_lua_ngx_echo(lua_State *L, unsigned newline)
 #else
         ngx_chain_update_chains(
 #endif
-                                &ctx->free_bufs, &ctx->busy_bufs, &cl, tag);
+                                &ctx->free_bufs, &ctx->busy_bufs, &cl,
+                                (ngx_buf_tag_t) &ngx_http_lua_module);
 
-        dd("out lua buf tag: %p, buffered: %x, busy bufs: %p",
-            &ngx_http_lua_module, (int) r->connection->buffered,
-            ctx->busy_bufs);
+        dd("out lua buf tag: %p, buffered: 0x%x, busy bufs: %p",
+           &ngx_http_lua_module, (int) r->connection->buffered,
+           ctx->busy_bufs);
     }
 
-    return 0;
+    lua_pushinteger(L, 1);
+    return 1;
 }
 
 
@@ -275,7 +283,7 @@ ngx_http_lua_calc_strlen_in_table(lua_State *L, int index, int arg_i,
 
             if (floor(key) == key && key >= 1) {
                 if (key > max) {
-                    max = key;
+                    max = (int) key;
                 }
 
                 lua_pop(L, 1); /* stack: table key */
@@ -286,8 +294,7 @@ ngx_http_lua_calc_strlen_in_table(lua_State *L, int index, int arg_i,
         /* not an array (non positive integer key) */
         lua_pop(L, 2); /* stack: table */
 
-        msg = lua_pushfstring(L, "non-array table found");
-        luaL_argerror(L, arg_i, msg);
+        luaL_argerror(L, arg_i, "non-array table found");
         return 0;
     }
 
@@ -350,6 +357,7 @@ ngx_http_lua_calc_strlen_in_table(lua_State *L, int index, int arg_i,
             default:
 
 bad_type:
+
                 msg = lua_pushfstring(L, "bad data type %s found",
                         lua_typename(L, type));
                 return luaL_argerror(L, arg_i, msg);
@@ -382,7 +390,7 @@ ngx_http_lua_copy_str_in_table(lua_State *L, int index, u_char *dst)
     while (lua_next(L, index) != 0) { /* stack: table key value */
         key = lua_tonumber(L, -2);
         if (key > max) {
-            max = key;
+            max = (int) key;
         }
 
         lua_pop(L, 1); /* stack: table key */
@@ -468,10 +476,7 @@ ngx_http_lua_ngx_flush(lua_State *L)
                 "or 1", n);
     }
 
-    lua_pushlightuserdata(L, &ngx_http_lua_request_key);
-    lua_rawget(L, LUA_GLOBALSINDEX);
-    r = lua_touserdata(L, -1);
-    lua_pop(L, 1);
+    r = ngx_http_lua_get_req(L);
 
     if (n == 1 && r == r->main) {
         luaL_checktype(L, 1, LUA_TBOOLEAN);
@@ -487,25 +492,45 @@ ngx_http_lua_ngx_flush(lua_State *L)
                                | NGX_HTTP_LUA_CONTEXT_ACCESS
                                | NGX_HTTP_LUA_CONTEXT_CONTENT);
 
+    if (ctx->acquired_raw_req_socket) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "raw request socket acquired");
+        return 2;
+    }
+
     coctx = ctx->cur_co_ctx;
     if (coctx == NULL) {
         return luaL_error(L, "no co ctx found");
     }
 
     if (r->header_only) {
-        return 0;
+        lua_pushnil(L);
+        lua_pushliteral(L, "header only");
+        return 2;
     }
 
     if (ctx->eof) {
-        return luaL_error(L, "already seen eof");
+        lua_pushnil(L);
+        lua_pushliteral(L, "seen eof");
+        return 2;
     }
 
     if (ctx->buffering) {
         ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "lua http 1.0 buffering makes ngx.flush() a no-op");
 
-        return 0;
+        lua_pushnil(L);
+        lua_pushliteral(L, "buffering");
+        return 2;
     }
+
+#if 1
+    if (!r->header_sent) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "nothing to flush");
+        return 2;
+    }
+#endif
 
     if (ctx->flush_buf) {
         cl = ctx->flush_buf;
@@ -514,7 +539,7 @@ ngx_http_lua_ngx_flush(lua_State *L)
         dd("allocating new flush buf");
         buf = ngx_calloc_buf(r->pool);
         if (buf == NULL) {
-            return luaL_error(L, "memory allocation error");
+            return luaL_error(L, "no memory");
         }
 
         buf->flush = 1;
@@ -522,7 +547,7 @@ ngx_http_lua_ngx_flush(lua_State *L)
         dd("allocating new flush chain");
         cl = ngx_alloc_chain_link(r->pool);
         if (cl == NULL) {
-            return luaL_error(L, "out of memory");
+            return luaL_error(L, "no memory");
         }
 
         cl->next = NULL;
@@ -533,16 +558,21 @@ ngx_http_lua_ngx_flush(lua_State *L)
 
     rc = ngx_http_lua_send_chain_link(r, ctx, cl);
 
+    dd("send chain: %d", (int) rc);
+
     if (rc == NGX_ERROR || rc >= NGX_HTTP_SPECIAL_RESPONSE) {
-        return luaL_error(L, "failed to send chain link: %d", (int) rc);
+        lua_pushnil(L);
+        lua_pushliteral(L, "nginx output filter error");
+        return 2;
     }
 
-    dd("wait:%d, rc:%d, buffered:%d", wait, (int) rc, r->connection->buffered);
+    dd("wait:%d, rc:%d, buffered:0x%x", wait, (int) rc,
+       r->connection->buffered);
 
-    if (wait && r->connection->buffered) {
+    if (wait && (r->connection->buffered & NGX_HTTP_LOWLEVEL_BUFFERED)) {
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                "lua flush requires waiting: buffered 0x%uxd",
-                (int) r->connection->buffered);
+                       "lua flush requires waiting: buffered 0x%uxd",
+                       (unsigned) r->connection->buffered);
 
         coctx->flushing = 1;
         ctx->flushing_coros++;
@@ -558,7 +588,9 @@ ngx_http_lua_ngx_flush(lua_State *L)
         wev = r->connection->write;
 
         if (wev->ready && wev->delayed) {
-            return 0;
+            lua_pushnil(L);
+            lua_pushliteral(L, "delayed");
+            return 2;
         }
 
         clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
@@ -571,9 +603,13 @@ ngx_http_lua_ngx_flush(lua_State *L)
             if (wev->timer_set) {
                 ngx_del_timer(wev);
             }
-            return luaL_error(L, "connection broken");
+
+            lua_pushnil(L);
+            lua_pushliteral(L, "connection broken");
+            return 2;
         }
 
+        ngx_http_lua_cleanup_pending_operation(ctx->cur_co_ctx);
         coctx->cleanup = ngx_http_lua_flush_cleanup;
         coctx->data = r;
 
@@ -583,7 +619,8 @@ ngx_http_lua_ngx_flush(lua_State *L)
     ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "lua flush asynchronously");
 
-    return 0;
+    lua_pushinteger(L, 1);
+    return 1;
 }
 
 
@@ -597,11 +634,7 @@ ngx_http_lua_ngx_eof(lua_State *L)
     ngx_http_lua_ctx_t      *ctx;
     ngx_int_t                rc;
 
-    lua_pushlightuserdata(L, &ngx_http_lua_request_key);
-    lua_rawget(L, LUA_GLOBALSINDEX);
-    r = lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
+    r = ngx_http_lua_get_req(L);
     if (r == NULL) {
         return luaL_error(L, "no request object found");
     }
@@ -615,6 +648,18 @@ ngx_http_lua_ngx_eof(lua_State *L)
         return luaL_error(L, "no ctx found");
     }
 
+    if (ctx->acquired_raw_req_socket) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "raw request socket acquired");
+        return 2;
+    }
+
+    if (ctx->eof) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "seen eof");
+        return 2;
+    }
+
     ngx_http_lua_check_context(L, ctx, NGX_HTTP_LUA_CONTEXT_REWRITE
                                | NGX_HTTP_LUA_CONTEXT_ACCESS
                                | NGX_HTTP_LUA_CONTEXT_CONTENT);
@@ -622,13 +667,18 @@ ngx_http_lua_ngx_eof(lua_State *L)
     ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "lua send eof");
 
-    rc = ngx_http_lua_send_chain_link(r, ctx, NULL/*indicate last_buf*/);
+    rc = ngx_http_lua_send_chain_link(r, ctx, NULL /* indicate last_buf */);
+
+    dd("send chain: %d", (int) rc);
 
     if (rc == NGX_ERROR || rc >= NGX_HTTP_SPECIAL_RESPONSE) {
-        return luaL_error(L, "failed to send eof buf");
+        lua_pushnil(L);
+        lua_pushliteral(L, "nginx output filter error");
+        return 2;
     }
 
-    return 0;
+    lua_pushinteger(L, 1);
+    return 1;
 }
 
 
@@ -658,14 +708,11 @@ ngx_http_lua_inject_output_api(lua_State *L)
 static int
 ngx_http_lua_ngx_send_headers(lua_State *L)
 {
+    ngx_int_t                rc;
     ngx_http_request_t      *r;
     ngx_http_lua_ctx_t      *ctx;
 
-    lua_pushlightuserdata(L, &ngx_http_lua_request_key);
-    lua_rawget(L, LUA_GLOBALSINDEX);
-    r = lua_touserdata(L, -1);
-    lua_pop(L, 1);
-
+    r = ngx_http_lua_get_req(L);
     if (r == NULL) {
         return luaL_error(L, "no request found");
     }
@@ -679,48 +726,56 @@ ngx_http_lua_ngx_send_headers(lua_State *L)
                                | NGX_HTTP_LUA_CONTEXT_ACCESS
                                | NGX_HTTP_LUA_CONTEXT_CONTENT);
 
-    if (!ctx->headers_sent) {
+    if (!r->header_sent) {
         ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "lua send headers");
 
-        ngx_http_lua_send_header_if_needed(r, ctx);
+        rc = ngx_http_lua_send_header_if_needed(r, ctx);
+        if (rc == NGX_ERROR || rc > NGX_OK) {
+            lua_pushnil(L);
+            lua_pushliteral(L, "nginx output filter error");
+            return 2;
+        }
     }
 
-    return 0;
+    lua_pushinteger(L, 1);
+    return 1;
 }
 
 
 ngx_int_t
 ngx_http_lua_flush_resume_helper(ngx_http_request_t *r, ngx_http_lua_ctx_t *ctx)
 {
+    lua_State                   *vm;
     ngx_int_t                    rc;
     ngx_connection_t            *c;
-    ngx_http_lua_main_conf_t    *lmcf;
-
-    lmcf = ngx_http_get_module_main_conf(r, ngx_http_lua_module);
 
     c = r->connection;
 
     ctx->cur_co_ctx->cleanup = NULL;
 
-    rc = ngx_http_lua_run_thread(lmcf->lua, r, ctx, 0);
+    /* push the return value 1 */
+    lua_pushinteger(ctx->cur_co_ctx->co, 1);
+
+    vm = ngx_http_lua_get_lua_vm(r, ctx);
+    rc = ngx_http_lua_run_thread(vm, r, ctx, 1);
 
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "lua run thread returned %d", rc);
 
     if (rc == NGX_AGAIN) {
-        return ngx_http_lua_run_posted_threads(c, lmcf->lua, r, ctx);
+        return ngx_http_lua_run_posted_threads(c, vm, r, ctx);
     }
 
     if (rc == NGX_DONE) {
-        ngx_http_finalize_request(r, NGX_DONE);
-        return ngx_http_lua_run_posted_threads(c, lmcf->lua, r, ctx);
+        ngx_http_lua_finalize_request(r, NGX_DONE);
+        return ngx_http_lua_run_posted_threads(c, vm, r, ctx);
     }
 
     /* rc == NGX_ERROR || rc >= NGX_OK */
 
     if (ctx->entered_content_phase) {
-        ngx_http_finalize_request(r, rc);
+        ngx_http_lua_finalize_request(r, rc);
         return NGX_DONE;
     }
 
@@ -757,3 +812,4 @@ ngx_http_lua_flush_cleanup(void *data)
     ctx->flushing_coros--;
 }
 
+/* vi:set ft=c ts=4 sw=4 et fdm=marker: */
